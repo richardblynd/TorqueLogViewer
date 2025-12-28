@@ -1,0 +1,404 @@
+﻿@page "/"
+@using System.Globalization
+@using System.Text.RegularExpressions
+@inject IJSRuntime JS
+
+<div class="layout-container">
+    <div id="map" class="map-container"></div>
+
+    <div class="chart-area">
+        <div class="controls-bar">
+            <div class="control-group">
+                <label>Carregar Log (CSV):</label>
+                <InputFile OnChange="HandleFileSelected" />
+            </div>
+
+            @if (IsDataLoaded)
+            {
+                <button class="btn-reset" @onclick="ResetZoom">⟲ Resetar Zoom</button>
+
+                <div class="control-group">
+                    <label>Eixo X:</label>
+                    <select @onchange="OnXAxisChanged">
+                        <option value="DeviceTime">Device Time (Padrão)</option>
+                        <option value="Index">Índice (Sequência)</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label>Sensores:</label>
+                    <div class="sensor-dropdown">
+                        <button class="btn-dropdown">Selecionar Sensores ▼</button>
+                        <div class="dropdown-content">
+                            @foreach (var sensor in AvailableSensors)
+                            {
+                                <label>
+                                    <input type="checkbox"
+                                           checked="@SelectedSensors.Contains(sensor)"
+                                           @onchange="@(e => ToggleSensor(sensor, (bool)e.Value))" />
+                                    @sensor
+                                </label>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="chart-container">
+            <canvas id="logChart"></canvas>
+        </div>
+
+        @if (CurrentPoint != null)
+        {
+            <div class="info-panel">
+                <strong>Ponto Selecionado (@CurrentIndex):</strong>
+                Tempo: @CurrentPoint.DeviceTime.ToString("HH:mm:ss") |
+                Velocidade: @GetValue(CurrentPoint, "Speed (GPS)(km/h)") km/h |
+                RPM: @GetValue(CurrentPoint, "Engine RPM(rpm)")
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    /* Estilos Básicos para o Layout Dividido */
+    .layout-container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100%;
+        overflow: hidden;
+    }
+
+    .map-container {
+        flex: 1; /* Ocupa metade ou o que sobrar */
+        min-height: 40vh;
+        width: 100%;
+        z-index: 1;
+    }
+
+    .chart-area {
+        flex: 1;
+        min-height: 40vh;
+        display: flex;
+        flex-direction: column;
+        background-color: #f8f9fa;
+        border-top: 2px solid #ccc;
+    }
+
+    .controls-bar {
+        padding: 10px;
+        background: #fff;
+        border-bottom: 1px solid #ddd;
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .control-group {
+        display: flex;
+        flex-direction: column;
+        font-size: 0.8rem;
+    }
+
+    .chart-container {
+        flex-grow: 1;
+        position: relative;
+        padding: 10px;
+    }
+
+    .info-panel {
+        padding: 5px 10px;
+        background: #e9ecef;
+        font-size: 0.9rem;
+        border-top: 1px solid #ddd;
+    }
+
+    /* Dropdown Simples CSS */
+    .sensor-dropdown { position: relative; display: inline-block; }
+    .btn-dropdown { padding: 5px; cursor: pointer; }
+    .dropdown-content {
+        display: none;
+        position: absolute;
+        background-color: #f9f9f9;
+        min-width: 250px;
+        max-height: 300px;
+        overflow-y: auto;
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        z-index: 1000;
+        padding: 10px;
+        border: 1px solid #ccc;
+    }
+    .sensor-dropdown:hover .dropdown-content { display: block; }
+    .dropdown-content label { display: block; margin-bottom: 5px; cursor: pointer; }
+</style>
+
+@code {
+    private bool IsDataLoaded = false;
+    private List<LogPoint> LogData = new();
+    private List<string> AvailableSensors = new();
+    private HashSet<string> SelectedSensors = new();
+
+    // Estado atual
+    private LogPoint? CurrentPoint;
+    private int CurrentIndex = -1;
+    private string XAxisMode = "DeviceTime";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("torqueApp.initMap", DotNetObjectReference.Create(this));
+            await JS.InvokeVoidAsync("torqueApp.initChart");
+        }
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        // Limite de tamanho (ex: 10MB)
+        using var stream = file.OpenReadStream(10 * 1024 * 1024);
+        using var reader = new StreamReader(stream);
+
+        var content = await reader.ReadToEndAsync();
+        ParseCSV(content);
+    }
+
+    private void ParseCSV(string csvContent)
+    {
+        LogData.Clear();
+        AvailableSensors.Clear();
+        SelectedSensors.Clear();
+
+        var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        if (lines.Length < 2) return;
+
+        // Cabeçalhos
+        var headers = lines[0].Split(',');
+        // Limpar espaços dos cabeçalhos
+        for (int i = 0; i < headers.Length; i++) headers[i] = headers[i].Trim();
+
+        // Identificar colunas numéricas (Sensores)
+        // Ignorar colunas de tempo e lat/lon na lista de sensores "plotáveis"
+        var ignoreCols = new[] { "GPS Time", "Device Time", "Longitude", "Latitude" };
+
+        foreach (var h in headers)
+        {
+            if (!ignoreCols.Contains(h)) AvailableSensors.Add(h);
+        }
+
+        // Selecionar alguns sensores padrão
+        var defaults = new[] { "Speed (GPS)(km/h)", "Engine RPM(rpm)", "Turbo Boost & Vacuum Gauge(bar)" };
+        foreach (var d in defaults) if (AvailableSensors.Contains(d)) SelectedSensors.Add(d);
+
+        // Parsing das linhas
+        var culturePt = new CultureInfo("pt-BR");
+
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var cols = lines[i].Split(',');
+            if (cols.Length != headers.Length) continue;
+
+            var point = new LogPoint();
+            point.RawData = new Dictionary<string, double>();
+
+            // Parse Tempo (Device Time) - Coluna 1
+            // Formato: 27-dez.-2025 20:26:16.579
+            // Fix: remover o ponto depois de 'dez' se existir, ou usar um parse customizado
+            var timeStr = cols[1].Trim();
+            // Truque rápido para "dez." -> "dez" para o parse PT-BR funcionar melhor se necessário
+            timeStr = timeStr.Replace("dez.", "dez");
+
+            if (DateTime.TryParse(timeStr, culturePt, DateTimeStyles.None, out DateTime dt))
+            {
+                point.DeviceTime = dt;
+            }
+
+            // Parse Lat/Lon (Colunas 2 e 3 geralmente, mas vamos pelo nome)
+            point.Longitude = ParseDouble(cols[Array.IndexOf(headers, "Longitude")]);
+            point.Latitude = ParseDouble(cols[Array.IndexOf(headers, "Latitude")]);
+
+            // Parse Sensores
+            for (int j = 0; j < headers.Length; j++)
+            {
+                if (AvailableSensors.Contains(headers[j]))
+                {
+                    double val = ParseDouble(cols[j]);
+                    point.RawData[headers[j]] = val;
+                }
+            }
+
+            LogData.Add(point);
+        }
+
+        IsDataLoaded = true;
+        UpdateVisualization();
+    }
+
+    private double ParseDouble(string val)
+    {
+        if (string.IsNullOrWhiteSpace(val) || val.Trim() == "-") return 0;
+        // Tenta cultura invariant (ponto)
+        if (double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out double res)) return res;
+        return 0;
+    }
+
+    private void UpdateVisualization()
+    {
+        if (!IsDataLoaded) return;
+
+        // 1. Atualizar Mapa (Rota)
+        // Filtrar pontos com lat/lon válidos (diferente de 0 ou nulo se possível)
+        var route = LogData
+            .Where(p => p.Latitude != 0 && p.Longitude != 0)
+            .Select(p => new[] { p.Latitude, p.Longitude })
+            .ToList();
+
+        JS.InvokeVoidAsync("torqueApp.drawRoute", route);
+
+        // 2. Atualizar Gráfico
+        UpdateChartData();
+    }
+
+    private void UpdateChartData()
+    {
+        // Preparar Labels (Eixo X)
+        string[] labels;
+        if (XAxisMode == "DeviceTime")
+            labels = LogData.Select(x => x.DeviceTime.ToString("HH:mm:ss")).ToArray();
+        else
+            labels = LogData.Select((x, i) => i.ToString()).ToArray();
+
+        // Preparar Datasets
+        var datasets = new List<object>();
+
+        string[] colors = { "#FF5733", "#33FF57", "#3357FF", "#FF33F6", "#33FFF6", "#F3FF33", "#FF8C33" };
+        int colorIdx = 0;
+
+        foreach (var sensor in SelectedSensors)
+        {
+            // Pega os dados brutos
+            var rawData = LogData.Select(p => p.RawData.ContainsKey(sensor) ? p.RawData[sensor] : 0).ToArray();
+
+            // Lógica de Normalização (Min-Max Scaling)
+            double min = rawData.Min();
+            double max = rawData.Max();
+            double range = max - min;
+
+            // Se o range for 0 (valor constante), define como 0.5 (meio do gráfico), senão normaliza entre 0 e 1
+            var normalizedData = rawData.Select(v => range == 0 ? 0.5 : (v - min) / range).ToArray();
+
+            datasets.Add(new
+            {
+                label = sensor,
+                data = normalizedData,       // O Chart.js desenha isso (0.0 a 1.0)
+                originalData = rawData,      // Dados REAIS para mostrarmos no Tooltip
+                borderColor = colors[colorIdx % colors.Length],
+                backgroundColor = "transparent",
+                borderWidth = 1,
+                pointRadius = 0,
+                pointHoverRadius = 4,
+                tension = 0.1 // Suaviza levemente a linha
+            });
+            colorIdx++;
+        }
+
+        JS.InvokeVoidAsync("torqueApp.updateChart", labels, datasets);
+    }
+
+    private void ToggleSensor(string sensor, bool isChecked)
+    {
+        if (isChecked) SelectedSensors.Add(sensor);
+        else SelectedSensors.Remove(sensor);
+        UpdateChartData();
+    }
+
+    private void OnXAxisChanged(ChangeEventArgs e)
+    {
+        XAxisMode = e.Value?.ToString() ?? "DeviceTime";
+        UpdateChartData();
+    }
+
+    // Chamado pelo JS quando o mapa é clicado
+    [JSInvokable]
+    public void OnMapClick(double lat, double lng)
+    {
+        // Encontrar o ponto mais próximo na lista
+        // (Isso é uma busca linear simples, para logs gigantes usar KD-Tree seria melhor, mas C# WASM aguenta bem ~10k pontos)
+        var closest = LogData
+            .Select((p, index) => new { Point = p, Index = index, Dist = Math.Pow(p.Latitude - lat, 2) + Math.Pow(p.Longitude - lng, 2) })
+            .OrderBy(x => x.Dist)
+            .FirstOrDefault();
+
+        if (closest != null)
+        {
+            SelectPoint(closest.Index);
+        }
+    }
+
+    // Chamado pelo JS quando o gráfico é clicado
+    [JSInvokable]
+    public void OnChartClick(int index)
+    {
+        SelectPoint(index);
+    }
+
+    private void SelectPoint(int index)
+    {
+        if (index < 0 || index >= LogData.Count) return;
+
+        CurrentIndex = index;
+        CurrentPoint = LogData[index];
+        StateHasChanged();
+
+        // 1. Atualizar visual no mapa
+        JS.InvokeVoidAsync("torqueApp.highlightPointOnMap", CurrentPoint.Latitude, CurrentPoint.Longitude);
+
+        // 2. Atualizar visual no gráfico
+        JS.InvokeVoidAsync("torqueApp.highlightPointOnChart", index);
+    }
+
+    private string GetValue(LogPoint p, string key)
+    {
+        if (p.RawData.ContainsKey(key)) return p.RawData[key].ToString("F2");
+        return "-";
+    }
+
+    // Classe de Modelo Interna
+    public class LogPoint
+    {
+        public DateTime DeviceTime { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public Dictionary<string, double> RawData { get; set; } = new();
+    }
+
+    // Método invocado pelo JavaScript quando pressiona seta Esquerda (-1) ou Direita (1)
+    [JSInvokable]
+    public void MoveSelection(int direction)
+    {
+        if (!IsDataLoaded || LogData.Count == 0) return;
+
+        // Calcula o novo índice
+        int newIndex = CurrentIndex + direction;
+
+        // Limites de segurança
+        if (newIndex < 0) newIndex = 0;
+        if (newIndex >= LogData.Count) newIndex = LogData.Count - 1;
+
+        // Se mudou, seleciona
+        if (newIndex != CurrentIndex)
+        {
+            SelectPoint(newIndex);
+        }
+    }
+
+    private async Task ResetZoom()
+    {
+        await JS.InvokeVoidAsync("torqueApp.resetChartZoom");
+    }
+}
