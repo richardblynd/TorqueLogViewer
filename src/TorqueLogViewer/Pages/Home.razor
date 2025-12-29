@@ -9,26 +9,26 @@
     <div class="chart-area">
         <div class="controls-bar">
             <div class="control-group">
-                <label>Carregar Log (CSV):</label>
+                <label>Load Log (CSV):</label>
                 <InputFile OnChange="HandleFileSelected" />
             </div>
 
             @if (IsDataLoaded)
             {
-                <button class="btn-reset" @onclick="ResetZoom">⟲ Resetar Zoom</button>
+                <button class="btn-reset" @onclick="ResetZoom">⟲ Reset Zoom</button>
 
                 <div class="control-group">
-                    <label>Eixo X:</label>
+                    <label>X Axis:</label>
                     <select @onchange="OnXAxisChanged">
-                        <option value="DeviceTime">Device Time (Padrão)</option>
-                        <option value="Index">Índice (Sequência)</option>
+                        <option value="DeviceTime">Device Time (Default)</option>
+                        <option value="Index">Index (Sequence)</option>
                     </select>
                 </div>
 
                 <div class="control-group">
-                    <label>Sensores:</label>
+                    <label>Sensors:</label>
                     <div class="sensor-dropdown">
-                        <button class="btn-dropdown">Selecionar Sensores ▼</button>
+                        <button class="btn-dropdown">Select Sensors ▼</button>
                         <div class="dropdown-content">
                             @foreach (var sensor in AvailableSensors)
                             {
@@ -52,9 +52,9 @@
         @if (CurrentPoint != null)
         {
             <div class="info-panel">
-                <strong>Ponto Selecionado (@CurrentIndex):</strong>
-                Tempo: @CurrentPoint.DeviceTime.ToString("HH:mm:ss") |
-                Velocidade: @GetValue(CurrentPoint, "Speed (GPS)(km/h)") km/h |
+                <strong>Selected Point (@CurrentIndex):</strong>
+                Time: @CurrentPoint.DeviceTime.ToString("HH:mm:ss") |
+                Speed: @GetValue(CurrentPoint, "Speed (GPS)(km/h)") km/h |
                 RPM: @GetValue(CurrentPoint, "Engine RPM(rpm)")
             </div>
         }
@@ -62,7 +62,7 @@
 </div>
 
 <style>
-    /* Estilos Básicos para o Layout Dividido */
+    /* Basic Styles for Split Layout */
     .layout-container {
         display: flex;
         flex-direction: column;
@@ -72,7 +72,7 @@
     }
 
     .map-container {
-        flex: 1; /* Ocupa metade ou o que sobrar */
+        flex: 1; /* Takes up half or whatever remains */
         min-height: 40vh;
         width: 100%;
         z-index: 1;
@@ -116,7 +116,7 @@
         border-top: 1px solid #ddd;
     }
 
-    /* Dropdown Simples CSS */
+    /* Simple CSS Dropdown */
     .sensor-dropdown { position: relative; display: inline-block; }
     .btn-dropdown { padding: 5px; cursor: pointer; }
     .dropdown-content {
@@ -141,7 +141,7 @@
     private List<string> AvailableSensors = new();
     private HashSet<string> SelectedSensors = new();
 
-    // Estado atual
+    // Current state
     private LogPoint? CurrentPoint;
     private int CurrentIndex = -1;
     private string XAxisMode = "DeviceTime";
@@ -160,7 +160,7 @@
         var file = e.File;
         if (file == null) return;
 
-        // Limite de tamanho (ex: 10MB)
+        // Size limit (e.g., 10MB)
         using var stream = file.OpenReadStream(10 * 1024 * 1024);
         using var reader = new StreamReader(stream);
 
@@ -177,13 +177,13 @@
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length < 2) return;
 
-        // Cabeçalhos
+        // Headers
         var headers = lines[0].Split(',');
-        // Limpar espaços dos cabeçalhos
+        // Clean spaces from headers
         for (int i = 0; i < headers.Length; i++) headers[i] = headers[i].Trim();
 
-        // Identificar colunas numéricas (Sensores)
-        // Ignorar colunas de tempo e lat/lon na lista de sensores "plotáveis"
+        // Identify numeric columns (Sensors)
+        // Ignore time and lat/lon columns in the list of "plottable" sensors
         var ignoreCols = new[] { "GPS Time", "Device Time", "Longitude", "Latitude" };
 
         foreach (var h in headers)
@@ -191,11 +191,11 @@
             if (!ignoreCols.Contains(h)) AvailableSensors.Add(h);
         }
 
-        // Selecionar alguns sensores padrão
+        // Select some default sensors
         var defaults = new[] { "Speed (GPS)(km/h)", "Engine RPM(rpm)", "Turbo Boost & Vacuum Gauge(bar)" };
         foreach (var d in defaults) if (AvailableSensors.Contains(d)) SelectedSensors.Add(d);
 
-        // Parsing das linhas
+        // Parse lines
         var culturePt = new CultureInfo("pt-BR");
 
         for (int i = 1; i < lines.Length; i++)
@@ -206,11 +206,11 @@
             var point = new LogPoint();
             point.RawData = new Dictionary<string, double>();
 
-            // Parse Tempo (Device Time) - Coluna 1
-            // Formato: 27-dez.-2025 20:26:16.579
-            // Fix: remover o ponto depois de 'dez' se existir, ou usar um parse customizado
+            // Parse Time (Device Time) - Column 1
+            // Format: 27-dez.-2025 20:26:16.579
+            // Fix: remove the period after 'dez' if it exists, or use a custom parse
             var timeStr = cols[1].Trim();
-            // Truque rápido para "dez." -> "dez" para o parse PT-BR funcionar melhor se necessário
+            // Quick trick for "dez." -> "dez" to make PT-BR parsing work better if necessary
             timeStr = timeStr.Replace("dez.", "dez");
 
             if (DateTime.TryParse(timeStr, culturePt, DateTimeStyles.None, out DateTime dt))
@@ -218,11 +218,11 @@
                 point.DeviceTime = dt;
             }
 
-            // Parse Lat/Lon (Colunas 2 e 3 geralmente, mas vamos pelo nome)
+            // Parse Lat/Lon (Columns 2 and 3 usually, but we go by name)
             point.Longitude = ParseDouble(cols[Array.IndexOf(headers, "Longitude")]);
             point.Latitude = ParseDouble(cols[Array.IndexOf(headers, "Latitude")]);
 
-            // Parse Sensores
+            // Parse Sensors
             for (int j = 0; j < headers.Length; j++)
             {
                 if (AvailableSensors.Contains(headers[j]))
@@ -242,7 +242,7 @@
     private double ParseDouble(string val)
     {
         if (string.IsNullOrWhiteSpace(val) || val.Trim() == "-") return 0;
-        // Tenta cultura invariant (ponto)
+        // Try invariant culture (dot)
         if (double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out double res)) return res;
         return 0;
     }
@@ -251,8 +251,8 @@
     {
         if (!IsDataLoaded) return;
 
-        // 1. Atualizar Mapa (Rota)
-        // Filtrar pontos com lat/lon válidos (diferente de 0 ou nulo se possível)
+        // 1. Update Map (Route)
+        // Filter points with valid lat/lon (different from 0 or null if possible)
         var route = LogData
             .Where(p => p.Latitude != 0 && p.Longitude != 0)
             .Select(p => new[] { p.Latitude, p.Longitude })
@@ -260,20 +260,20 @@
 
         JS.InvokeVoidAsync("torqueApp.drawRoute", route);
 
-        // 2. Atualizar Gráfico
+        // 2. Update Chart
         UpdateChartData();
     }
 
     private void UpdateChartData()
     {
-        // Preparar Labels (Eixo X)
+        // Prepare Labels (X Axis)
         string[] labels;
         if (XAxisMode == "DeviceTime")
             labels = LogData.Select(x => x.DeviceTime.ToString("HH:mm:ss")).ToArray();
         else
             labels = LogData.Select((x, i) => i.ToString()).ToArray();
 
-        // Preparar Datasets
+        // Prepare Datasets
         var datasets = new List<object>();
 
         string[] colors = { "#FF5733", "#33FF57", "#3357FF", "#FF33F6", "#33FFF6", "#F3FF33", "#FF8C33" };
@@ -281,28 +281,28 @@
 
         foreach (var sensor in SelectedSensors)
         {
-            // Pega os dados brutos
+            // Get raw data
             var rawData = LogData.Select(p => p.RawData.ContainsKey(sensor) ? p.RawData[sensor] : 0).ToArray();
 
-            // Lógica de Normalização (Min-Max Scaling)
+            // Normalization Logic (Min-Max Scaling)
             double min = rawData.Min();
             double max = rawData.Max();
             double range = max - min;
 
-            // Se o range for 0 (valor constante), define como 0.5 (meio do gráfico), senão normaliza entre 0 e 1
+            // If range is 0 (constant value), set to 0.5 (middle of chart), otherwise normalize between 0 and 1
             var normalizedData = rawData.Select(v => range == 0 ? 0.5 : (v - min) / range).ToArray();
 
             datasets.Add(new
             {
                 label = sensor,
-                data = normalizedData,       // O Chart.js desenha isso (0.0 a 1.0)
-                originalData = rawData,      // Dados REAIS para mostrarmos no Tooltip
+                data = normalizedData,       // Chart.js draws this (0.0 to 1.0)
+                originalData = rawData,      // REAL data to show in Tooltip
                 borderColor = colors[colorIdx % colors.Length],
                 backgroundColor = "transparent",
                 borderWidth = 1,
                 pointRadius = 0,
                 pointHoverRadius = 4,
-                tension = 0.1 // Suaviza levemente a linha
+                tension = 0.1 // Smooths the line slightly
             });
             colorIdx++;
         }
@@ -323,12 +323,12 @@
         UpdateChartData();
     }
 
-    // Chamado pelo JS quando o mapa é clicado
+    // Called by JS when the map is clicked
     [JSInvokable]
     public void OnMapClick(double lat, double lng)
     {
-        // Encontrar o ponto mais próximo na lista
-        // (Isso é uma busca linear simples, para logs gigantes usar KD-Tree seria melhor, mas C# WASM aguenta bem ~10k pontos)
+        // Find the closest point in the list
+        // (This is a simple linear search, for giant logs using KD-Tree would be better, but C# WASM handles ~10k points well)
         var closest = LogData
             .Select((p, index) => new { Point = p, Index = index, Dist = Math.Pow(p.Latitude - lat, 2) + Math.Pow(p.Longitude - lng, 2) })
             .OrderBy(x => x.Dist)
@@ -340,7 +340,7 @@
         }
     }
 
-    // Chamado pelo JS quando o gráfico é clicado
+    // Called by JS when the chart is clicked
     [JSInvokable]
     public void OnChartClick(int index)
     {
@@ -355,10 +355,10 @@
         CurrentPoint = LogData[index];
         StateHasChanged();
 
-        // 1. Atualizar visual no mapa
+        // 1. Update visual on map
         JS.InvokeVoidAsync("torqueApp.highlightPointOnMap", CurrentPoint.Latitude, CurrentPoint.Longitude);
 
-        // 2. Atualizar visual no gráfico
+        // 2. Update visual on chart
         JS.InvokeVoidAsync("torqueApp.highlightPointOnChart", index);
     }
 
@@ -368,7 +368,7 @@
         return "-";
     }
 
-    // Classe de Modelo Interna
+    // Internal Model Class
     public class LogPoint
     {
         public DateTime DeviceTime { get; set; }
@@ -377,20 +377,20 @@
         public Dictionary<string, double> RawData { get; set; } = new();
     }
 
-    // Método invocado pelo JavaScript quando pressiona seta Esquerda (-1) ou Direita (1)
+    // Method invoked by JavaScript when pressing Left (-1) or Right (1) arrow keys
     [JSInvokable]
     public void MoveSelection(int direction)
     {
         if (!IsDataLoaded || LogData.Count == 0) return;
 
-        // Calcula o novo índice
+        // Calculate the new index
         int newIndex = CurrentIndex + direction;
 
-        // Limites de segurança
+        // Safety limits
         if (newIndex < 0) newIndex = 0;
         if (newIndex >= LogData.Count) newIndex = LogData.Count - 1;
 
-        // Se mudou, seleciona
+        // If it changed, select
         if (newIndex != CurrentIndex)
         {
             SelectPoint(newIndex);

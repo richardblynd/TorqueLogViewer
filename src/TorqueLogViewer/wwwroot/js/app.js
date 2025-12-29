@@ -1,6 +1,6 @@
 ﻿window.torqueApp = {
-    // ... (manter map, chart, initMap, drawRoute, highlightPointOnMap como estavam) ...
-    // Vou repetir as partes essenciais e adicionar a nova função no final
+    // ... (keep map, chart, initMap, drawRoute, highlightPointOnMap as they were) ...
+    // I'll repeat the essential parts and add the new function at the end
 
     map: null,
     chart: null,
@@ -23,7 +23,7 @@
         });
 
         document.addEventListener('keydown', (e) => {
-            // Adicionei preventDefault para a página não rolar com as setas
+            // Added preventDefault so the page doesn't scroll with arrow keys
             if (e.key === "ArrowRight") {
                 e.preventDefault();
                 window.torqueApp.dotNetRef.invokeMethodAsync('MoveSelection', 1);
@@ -34,12 +34,12 @@
         });
     },
 
-    // ... (drawRoute e highlightPointOnMap mantém iguais) ...
+    // ... (drawRoute and highlightPointOnMap remain the same) ...
     drawRoute: function (coordinates) {
         if (!this.map) return;
         if (this.polyline) this.map.removeLayer(this.polyline);
         if (this.currentMarker) this.map.removeLayer(this.currentMarker);
-        // Dica: Adicionamos interactive: false para garantir que cliques na linha passem para o mapa
+        // Tip: Added interactive: false to ensure clicks on the line pass through to the map
         this.polyline = L.polyline(coordinates, { color: 'blue', weight: 4, interactive: false }).addTo(this.map);
         if (coordinates.length > 0) this.map.fitBounds(this.polyline.getBounds());
     },
@@ -72,7 +72,7 @@
                 scales: {
                     x: { ticks: { display: false } },
                     y: {
-                        display: false // Oculta o eixo Y pois a escala 0-1 é apenas visual
+                        display: false // Hides the Y axis because the 0-1 scale is just visual
                     }
                 },
                 plugins: {
@@ -83,17 +83,17 @@
                     tooltip: {
                         animation: false,
                         callbacks: {
-                            // Customiza o texto do Tooltip para mostrar o valor REAL
+                            // Customizes the Tooltip text to show the REAL value
                             label: function (context) {
                                 let label = context.dataset.label || '';
                                 if (label) {
                                     label += ': ';
                                 }
-                                // Pega o valor original que passamos do C#
+                                // Gets the original value we passed from C#
                                 const originalValue = context.dataset.originalData[context.dataIndex];
 
                                 if (originalValue !== undefined && originalValue !== null) {
-                                    // Formata com até 2 casas decimais
+                                    // Formats with up to 2 decimal places
                                     label += originalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
                                 }
                                 return label;
@@ -122,23 +122,23 @@
         if (this.chart) this.chart.resetZoom();
     },
 
-    // --- NOVA FUNÇÃO MÁGICA ---
+    // --- NEW MAGIC FUNCTION ---
     highlightPointOnChart: function (index) {
         if (!this.chart) return;
 
-        // Identifica os pontos correspondentes ao índice em todos os datasets visíveis
+        // Identifies the points corresponding to the index in all visible datasets
         const activeElements = this.chart.data.datasets.map((ds, i) => ({
             datasetIndex: i,
             index: index
         }));
 
-        // Ativa visualmente os pontos (efeito de hover)
+        // Visually activates the points (hover effect)
         this.chart.setActiveElements(activeElements);
 
-        // Força a exibição do Tooltip
+        // Forces the Tooltip to display
         this.chart.tooltip.setActiveElements(activeElements);
 
-        // Renderiza as alterações
+        // Renders the changes
         this.chart.update();
     }
 };
