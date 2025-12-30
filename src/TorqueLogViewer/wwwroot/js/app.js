@@ -70,15 +70,35 @@
                     intersect: false,
                 },
                 scales: {
-                    x: { ticks: { display: false } },
+                    x: { 
+                        ticks: { display: false },
+                        min: undefined,
+                        max: undefined
+                    },
                     y: {
                         display: false // Hides the Y axis because the 0-1 scale is just visual
                     }
                 },
                 plugins: {
                     zoom: {
-                        zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
-                        pan: { enabled: true, mode: 'x' }
+                        zoom: { 
+                            wheel: { enabled: true }, 
+                            pinch: { enabled: true }, 
+                            mode: 'x',
+                            onZoom: function({chart}) {
+                                window.torqueApp.updateScrollbar();
+                            }
+                        },
+                        pan: { 
+                            enabled: true, 
+                            mode: 'x',
+                            onPan: function({chart}) {
+                                window.torqueApp.updateScrollbar();
+                            }
+                        },
+                        limits: {
+                            x: { min: 'original', max: 'original' }
+                        }
                     },
                     tooltip: {
                         animation: false,
@@ -109,17 +129,101 @@
                 }
             }
         });
+
+        // Initialize the scrollbar
+        this.initScrollbar();
+    },
+
+    initScrollbar: function() {
+        const scrollbar = document.getElementById('chartScrollbar');
+        if (!scrollbar) return;
+
+        scrollbar.addEventListener('input', (e) => {
+            const scrollPosition = parseFloat(e.target.value);
+            this.scrollChartToPosition(scrollPosition);
+        });
+    },
+
+    updateScrollbar: function() {
+        if (!this.chart) return;
+        
+        const scrollbar = document.getElementById('chartScrollbar');
+        const scrollbarContainer = document.getElementById('scrollbarContainer');
+        if (!scrollbar || !scrollbarContainer) return;
+
+        const xScale = this.chart.scales.x;
+        const totalLabels = this.chart.data.labels.length;
+        
+        if (!xScale || totalLabels === 0) return;
+
+        const min = xScale.min || 0;
+        const max = xScale.max || totalLabels - 1;
+        const visibleRange = max - min;
+        
+        // If showing everything (no zoom), hide the scrollbar
+        if (visibleRange >= totalLabels - 1) {
+            scrollbarContainer.style.display = 'none';
+            return;
+        }
+
+        scrollbarContainer.style.display = 'flex';
+        
+        // Update the scrollbar value (current position)
+        scrollbar.value = min;
+        scrollbar.min = 0;
+        scrollbar.max = totalLabels - visibleRange;
+        scrollbar.step = 1;
+    },
+
+    scrollChartToPosition: function(position) {
+        if (!this.chart) return;
+
+        const totalLabels = this.chart.data.labels.length;
+        if (totalLabels === 0) return;
+
+        const xScale = this.chart.scales.x;
+        const currentMin = xScale.min || 0;
+        const currentMax = xScale.max || totalLabels - 1;
+        const visibleRange = currentMax - currentMin;
+
+        // Calculate the new limits based on scroll position
+        const newMin = position;
+        const newMax = position + visibleRange;
+
+        // Update the chart zoom
+        this.chart.options.scales.x.min = newMin;
+        this.chart.options.scales.x.max = newMax;
+        this.chart.update('none'); // 'none' avoids animation for smooth scroll
     },
 
     updateChart: function (labels, datasets) {
         if (!this.chart) return;
         this.chart.data.labels = labels;
         this.chart.data.datasets = datasets;
+        
+        // Reset zoom when loading new data
+        this.chart.options.scales.x.min = undefined;
+        this.chart.options.scales.x.max = undefined;
+        
         this.chart.update();
+        
+        // Hide the scrollbar initially
+        const scrollbarContainer = document.getElementById('scrollbarContainer');
+        if (scrollbarContainer) {
+            scrollbarContainer.style.display = 'none';
+        }
     },
 
     resetChartZoom: function () {
-        if (this.chart) this.chart.resetZoom();
+        if (this.chart) {
+            this.chart.resetZoom();
+            
+            // Hide the scrollbar when resetting
+            const scrollbarContainer = document.getElementById('scrollbarContainer');
+            if (scrollbarContainer) {
+                scrollbarContainer.style.display = 'none';
+            }
+        }
     },
 
     // --- NEW MAGIC FUNCTION ---

@@ -2,10 +2,14 @@
     position: relative;
     display: flex;
     flex-direction: column;
+    height: 100vh;
 }
 
 main {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .sidebar {
@@ -19,6 +23,7 @@ main {
     height: 3.5rem;
     display: flex;
     align-items: center;
+    flex-shrink: 0;
 }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
@@ -35,6 +40,11 @@ main {
         overflow: hidden;
         text-overflow: ellipsis;
     }
+
+article {
+    flex: 1;
+    overflow: auto;
+}
 
 @media (max-width: 640.98px) {
     .top-row {
@@ -56,6 +66,7 @@ main {
         height: 100vh;
         position: sticky;
         top: 0;
+        flex-shrink: 0;
     }
 
     .top-row {

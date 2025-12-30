@@ -48,16 +48,24 @@
         <div class="chart-container">
             <canvas id="logChart"></canvas>
         </div>
+        
+        <div id="scrollbarContainer" class="scrollbar-container" style="display: none;">
+            <label class="scrollbar-label">Navigation:</label>
+            <input type="range" id="chartScrollbar" class="chart-scrollbar" />
+        </div>
 
-        @if (CurrentPoint != null)
-        {
-            <div class="info-panel">
-                <strong>Selected Point (@CurrentIndex):</strong>
-                Time: @CurrentPoint.DeviceTime.ToString("HH:mm:ss") |
-                Speed: @GetValue(CurrentPoint, "Speed (GPS)(km/h)") km/h |
-                RPM: @GetValue(CurrentPoint, "Engine RPM(rpm)")
-            </div>
-        }
+        <div class="info-panel">
+            @if (CurrentPoint != null)
+            {
+                <div>
+                    <strong>Selected Point (@CurrentIndex):</strong>
+                    Time: @CurrentPoint.DeviceTime.ToString() |
+                    Time: @CurrentPoint.DeviceTime.ToString("HH:mm:ss") |
+                    Speed: @GetValue(CurrentPoint, "Speed (GPS)(km/h)") km/h |
+                    RPM: @GetValue(CurrentPoint, "Engine RPM(rpm)")
+                </div>
+            }
+        </div>
     </div>
 </div>
 
@@ -66,14 +74,15 @@
     .layout-container {
         display: flex;
         flex-direction: column;
-        height: 100vh;
+        height: 100%;
         width: 100%;
         overflow: hidden;
     }
 
     .map-container {
         flex: 1; /* Takes up half or whatever remains */
-        min-height: 40vh;
+        min-height: 35vh;
+        max-height: 35vh;
         width: 100%;
         z-index: 1;
     }
@@ -95,6 +104,7 @@
         gap: 15px;
         align-items: center;
         flex-wrap: wrap;
+        flex-shrink: 0;
     }
 
     .control-group {
@@ -104,9 +114,10 @@
     }
 
     .chart-container {
-        flex-grow: 1;
+        flex: 1;
         position: relative;
         padding: 10px;
+        overflow: hidden;
     }
 
     .info-panel {
@@ -114,6 +125,7 @@
         background: #e9ecef;
         font-size: 0.9rem;
         border-top: 1px solid #ddd;
+        flex-shrink: 0;
     }
 
     /* Simple CSS Dropdown */
@@ -133,6 +145,74 @@
     }
     .sensor-dropdown:hover .dropdown-content { display: block; }
     .dropdown-content label { display: block; margin-bottom: 5px; cursor: pointer; }
+
+    /* Horizontal scrollbar for chart navigation */
+    .scrollbar-container {
+        padding: 10px;
+        background: #fff;
+        border-top: 1px solid #ddd;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    .scrollbar-label {
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin: 0;
+        white-space: nowrap;
+    }
+
+    .chart-scrollbar {
+        flex: 1;
+        height: 8px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: #e0e0e0;
+        border-radius: 5px;
+        outline: none;
+        cursor: pointer;
+    }
+
+    .chart-scrollbar::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 60px;
+        height: 20px;
+        background: #4CAF50;
+        border-radius: 5px;
+        cursor: grab;
+        transition: background 0.2s;
+    }
+
+    .chart-scrollbar::-webkit-slider-thumb:hover {
+        background: #45a049;
+    }
+
+    .chart-scrollbar::-webkit-slider-thumb:active {
+        cursor: grabbing;
+        background: #3d8b40;
+    }
+
+    .chart-scrollbar::-moz-range-thumb {
+        width: 60px;
+        height: 20px;
+        background: #4CAF50;
+        border-radius: 5px;
+        border: none;
+        cursor: grab;
+        transition: background 0.2s;
+    }
+
+    .chart-scrollbar::-moz-range-thumb:hover {
+        background: #45a049;
+    }
+
+    .chart-scrollbar::-moz-range-thumb:active {
+        cursor: grabbing;
+        background: #3d8b40;
+    }
 </style>
 
 @code {
@@ -145,6 +225,14 @@
     private LogPoint? CurrentPoint;
     private int CurrentIndex = -1;
     private string XAxisMode = "DeviceTime";
+
+    // Mapping of Portuguese month abbreviations to numbers
+    private static readonly Dictionary<string, int> MonthMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "jan", 1 }, { "fev", 2 }, { "mar", 3 }, { "abr", 4 },
+        { "mai", 5 }, { "jun", 6 }, { "jul", 7 }, { "ago", 8 },
+        { "set", 9 }, { "out", 10 }, { "nov", 11 }, { "dez", 12 }
+    };
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -196,8 +284,6 @@
         foreach (var d in defaults) if (AvailableSensors.Contains(d)) SelectedSensors.Add(d);
 
         // Parse lines
-        var culturePt = new CultureInfo("pt-BR");
-
         for (int i = 1; i < lines.Length; i++)
         {
             var cols = lines[i].Split(',');
@@ -207,16 +293,8 @@
             point.RawData = new Dictionary<string, double>();
 
             // Parse Time (Device Time) - Column 1
-            // Format: 27-dez.-2025 20:26:16.579
-            // Fix: remove the period after 'dez' if it exists, or use a custom parse
             var timeStr = cols[1].Trim();
-            // Quick trick for "dez." -> "dez" to make PT-BR parsing work better if necessary
-            timeStr = timeStr.Replace("dez.", "dez");
-
-            if (DateTime.TryParse(timeStr, culturePt, DateTimeStyles.None, out DateTime dt))
-            {
-                point.DeviceTime = dt;
-            }
+            point.DeviceTime = ParseDeviceTime(timeStr);
 
             // Parse Lat/Lon (Columns 2 and 3 usually, but we go by name)
             point.Longitude = ParseDouble(cols[Array.IndexOf(headers, "Longitude")]);
@@ -237,6 +315,58 @@
 
         IsDataLoaded = true;
         UpdateVisualization();
+    }
+
+    private DateTime ParseDeviceTime(string timeStr)
+    {
+        if (string.IsNullOrWhiteSpace(timeStr))
+            return DateTime.MinValue;
+
+        // Expected format: "30-dez-2025 16:15:09.236" or "27-dez.-2025 20:26:16.579"
+        // Remove dots after month abbreviations
+        timeStr = Regex.Replace(timeStr, @"([a-z]{3})\.", "$1", RegexOptions.IgnoreCase);
+
+        // Try parse with PT-BR culture first
+        var culturePt = new CultureInfo("pt-BR");
+        if (DateTime.TryParse(timeStr, culturePt, DateTimeStyles.None, out DateTime dt))
+            return dt;
+
+        // Manual parse using regex
+        // Pattern: DD-MMM-YYYY HH:mm:ss.fff
+        var match = Regex.Match(timeStr, @"(\d{1,2})-([a-z]{3})-(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?", RegexOptions.IgnoreCase);
+        
+        if (match.Success)
+        {
+            try
+            {
+                int day = int.Parse(match.Groups[1].Value);
+                string monthStr = match.Groups[2].Value.ToLower();
+                int year = int.Parse(match.Groups[3].Value);
+                int hour = int.Parse(match.Groups[4].Value);
+                int minute = int.Parse(match.Groups[5].Value);
+                int second = int.Parse(match.Groups[6].Value);
+                int millisecond = 0;
+
+                if (match.Groups[7].Success)
+                {
+                    // Parse milliseconds (may have more or less than 3 digits)
+                    string msStr = match.Groups[7].Value;
+                    if (msStr.Length > 3) msStr = msStr.Substring(0, 3);
+                    millisecond = int.Parse(msStr.PadRight(3, '0'));
+                }
+
+                if (MonthMap.TryGetValue(monthStr, out int month))
+                {
+                    return new DateTime(year, month, day, hour, minute, second, millisecond);
+                }
+            }
+            catch
+            {
+                // If it fails, return MinValue
+            }
+        }
+
+        return DateTime.MinValue;
     }
 
     private double ParseDouble(string val)
@@ -299,7 +429,7 @@
                 originalData = rawData,      // REAL data to show in Tooltip
                 borderColor = colors[colorIdx % colors.Length],
                 backgroundColor = "transparent",
-                borderWidth = 1,
+                borderWidth = 2,
                 pointRadius = 0,
                 pointHoverRadius = 4,
                 tension = 0.1 // Smooths the line slightly
