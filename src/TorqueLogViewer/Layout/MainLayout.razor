@@ -1,11 +1,21 @@
-﻿@inherits LayoutComponentBase
+﻿@using TorqueLogViewer.Services
+@inject SidebarService SidebarService
+@inherits LayoutComponentBase
+@implements IDisposable
+
 <div class="page">
-    <div class="sidebar">
+    <div class="sidebar @(SidebarService.IsCollapsed ? "collapsed" : "")">
         <NavMenu />
     </div>
 
-    <main>
+    <main class="@(SidebarService.IsCollapsed ? "expanded" : "")">
         <div class="top-row px-4">
+            @if (SidebarService.IsCollapsed)
+            {
+                <button class="btn-menu-toggle" @onclick="ToggleSidebar" title="Mostrar menu">
+                    <span class="menu-icon">☰</span>
+                </button>
+            }
         </div>
 
         <article class="content px-4">
@@ -13,3 +23,25 @@
         </article>
     </main>
 </div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        SidebarService.OnStateChanged += OnSidebarStateChanged;
+    }
+
+    private void OnSidebarStateChanged()
+    {
+        StateHasChanged();
+    }
+
+    private void ToggleSidebar()
+    {
+        SidebarService.ToggleSidebar();
+    }
+
+    public void Dispose()
+    {
+        SidebarService.OnStateChanged -= OnSidebarStateChanged;
+    }
+}

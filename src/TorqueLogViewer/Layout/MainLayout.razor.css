@@ -10,10 +10,16 @@ main {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transition: all 0.3s ease;
 }
 
 .sidebar {
     background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    transition: all 0.3s ease;
+}
+
+.sidebar.collapsed {
+    margin-left: -250px;
 }
 
 .top-row {
@@ -24,6 +30,7 @@ main {
     display: flex;
     align-items: center;
     flex-shrink: 0;
+    position: relative;
 }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
@@ -40,6 +47,32 @@ main {
         overflow: hidden;
         text-overflow: ellipsis;
     }
+
+.btn-menu-toggle {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #1b6ec2;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-radius: 0 4px 4px 0;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+    transition: background-color 0.2s ease;
+    z-index: 10;
+}
+
+.btn-menu-toggle:hover {
+    background-color: #155a9c;
+}
+
+.menu-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+    display: block;
+}
 
 article {
     flex: 1;
@@ -67,6 +100,16 @@ article {
         position: sticky;
         top: 0;
         flex-shrink: 0;
+    }
+
+    .sidebar.collapsed {
+        width: 0;
+        margin-left: 0;
+        overflow: hidden;
+    }
+
+    main.expanded {
+        width: 100%;
     }
 
     .top-row {
