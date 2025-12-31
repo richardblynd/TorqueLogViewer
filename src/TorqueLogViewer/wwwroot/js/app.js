@@ -244,5 +244,27 @@
 
         // Renders the changes
         this.chart.update();
+    },
+
+    // Clipboard functions for sensor synchronization
+    copyToClipboard: async function (text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            alert('Sensors copied to clipboard!');
+        } catch (err) {
+            console.error('Error copying:', err);
+            alert('Error copying to clipboard.');
+        }
+    },
+
+    readFromClipboard: async function () {
+        try {
+            const text = await navigator.clipboard.readText();
+            return text;
+        } catch (err) {
+            console.error('Error reading from clipboard:', err);
+            alert('Error reading from clipboard. Please check browser permissions.');
+            return '';
+        }
     }
 };

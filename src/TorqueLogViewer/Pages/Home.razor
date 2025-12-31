@@ -17,6 +17,14 @@
             {
                 <button class="btn-reset" @onclick="ResetZoom">⟲ Reset Zoom</button>
 
+                <button class="btn-sync" @onclick="CopySensorsToClipboard" title="Copy selected sensors">
+                    📋 Copy Sensors
+                </button>
+
+                <button class="btn-sync" @onclick="ImportSensorsFromClipboard" title="Import sensors from clipboard">
+                    📥 Import Sensors
+                </button>
+
                 <div class="control-group">
                     <label>X Axis:</label>
                     <select @onchange="OnXAxisChanged">
@@ -111,6 +119,28 @@
         display: flex;
         flex-direction: column;
         font-size: 0.8rem;
+    }
+
+    .btn-reset, .btn-sync {
+        padding: 5px 10px;
+        cursor: pointer;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.85rem;
+    }
+
+    .btn-reset:hover, .btn-sync:hover {
+        background-color: #45a049;
+    }
+
+    .btn-sync {
+        background-color: #2196F3;
+    }
+
+    .btn-sync:hover {
+        background-color: #0b7dda;
     }
 
     .chart-container {
@@ -225,6 +255,10 @@
     private LogPoint? CurrentPoint;
     private int CurrentIndex = -1;
     private string XAxisMode = "DeviceTime";
+
+    // Color mapping for sensors
+    private static readonly string[] ChartColors = { "#FF5733", "#33FF57", "#3357FF", "#FF33F6", "#33FFF6", "#F3FF33", "#FF8C33" };
+    private Dictionary<string, string> SensorColorMapping = new();
 
     // Mapping of Portuguese month abbreviations to numbers
     private static readonly Dictionary<string, int> MonthMap = new(StringComparer.OrdinalIgnoreCase)
@@ -406,11 +440,16 @@
         // Prepare Datasets
         var datasets = new List<object>();
 
-        string[] colors = { "#FF5733", "#33FF57", "#3357FF", "#FF33F6", "#33FFF6", "#F3FF33", "#FF8C33" };
         int colorIdx = 0;
 
         foreach (var sensor in SelectedSensors)
         {
+            // Assign color if not already assigned
+            if (!SensorColorMapping.ContainsKey(sensor))
+            {
+                SensorColorMapping[sensor] = ChartColors[colorIdx % ChartColors.Length];
+            }
+
             // Get raw data
             var rawData = LogData.Select(p => p.RawData.ContainsKey(sensor) ? p.RawData[sensor] : 0).ToArray();
 
@@ -427,7 +466,7 @@
                 label = sensor,
                 data = normalizedData,       // Chart.js draws this (0.0 to 1.0)
                 originalData = rawData,      // REAL data to show in Tooltip
-                borderColor = colors[colorIdx % colors.Length],
+                borderColor = SensorColorMapping[sensor],
                 backgroundColor = "transparent",
                 borderWidth = 2,
                 pointRadius = 0,
@@ -530,5 +569,91 @@
     private async Task ResetZoom()
     {
         await JS.InvokeVoidAsync("torqueApp.resetChartZoom");
+    }
+
+    private async Task CopySensorsToClipboard()
+    {
+        if (!IsDataLoaded || SelectedSensors.Count == 0)
+        {
+            await JS.InvokeVoidAsync("alert", "No sensors selected to copy.");
+            return;
+        }
+
+        // Create sensor configuration object
+        var sensorConfig = SelectedSensors.Select(sensor => new
+        {
+            Name = sensor,
+            Color = SensorColorMapping.ContainsKey(sensor) ? SensorColorMapping[sensor] : ChartColors[0]
+        }).ToList();
+
+        // Serialize to JSON
+        var json = System.Text.Json.JsonSerializer.Serialize(sensorConfig, new System.Text.Json.JsonSerializerOptions 
+        { 
+            WriteIndented = true 
+        });
+
+        // Copy to clipboard via JavaScript
+        await JS.InvokeVoidAsync("torqueApp.copyToClipboard", json);
+    }
+
+    private async Task ImportSensorsFromClipboard()
+    {
+        if (!IsDataLoaded)
+        {
+            await JS.InvokeVoidAsync("alert", "Please load a CSV file first.");
+            return;
+        }
+
+        try
+        {
+            // Read from clipboard via JavaScript
+            var json = await JS.InvokeAsync<string>("torqueApp.readFromClipboard");
+            
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                await JS.InvokeVoidAsync("alert", "Clipboard is empty.");
+                return;
+            }
+
+            // Deserialize JSON
+            var sensorConfig = System.Text.Json.JsonSerializer.Deserialize<List<SensorConfiguration>>(json);
+            
+            if (sensorConfig == null || sensorConfig.Count == 0)
+            {
+                await JS.InvokeVoidAsync("alert", "Invalid data format.");
+                return;
+            }
+
+            // Clear current selection
+            SelectedSensors.Clear();
+            
+            // Apply imported sensors and colors
+            foreach (var config in sensorConfig)
+            {
+                // Only add if the sensor exists in the current log
+                if (AvailableSensors.Contains(config.Name))
+                {
+                    SelectedSensors.Add(config.Name);
+                    SensorColorMapping[config.Name] = config.Color;
+                }
+            }
+
+            // Update the visualization
+            UpdateChartData();
+            StateHasChanged();
+            
+            await JS.InvokeVoidAsync("alert", $"{SelectedSensors.Count} sensors imported successfully!");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error importing: {ex.Message}");
+        }
+    }
+
+    // Helper class for JSON serialization
+    public class SensorConfiguration
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Color { get; set; } = string.Empty;
     }
 }
