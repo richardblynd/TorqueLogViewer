@@ -266,5 +266,214 @@
             alert('Error reading from clipboard. Please check browser permissions.');
             return '';
         }
+    },
+
+    // Compare page - dual chart management
+    chart1: null,
+    chart2: null,
+    compareRef: null,
+
+    initCompareCharts: function (dotNetReference) {
+        this.compareRef = dotNetReference;
+        
+        // Initialize Chart 1
+        const ctx1 = document.getElementById('logChart1');
+        if (ctx1) {
+            if (this.chart1) this.chart1.destroy();
+            this.chart1 = this.createCompareChart(ctx1, 1);
+            this.initCompareScrollbar(1);
+        }
+
+        // Initialize Chart 2
+        const ctx2 = document.getElementById('logChart2');
+        if (ctx2) {
+            if (this.chart2) this.chart2.destroy();
+            this.chart2 = this.createCompareChart(ctx2, 2);
+            this.initCompareScrollbar(2);
+        }
+
+        // Setup keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === "ArrowRight") {
+                e.preventDefault();
+                this.compareRef?.invokeMethodAsync('MoveCompareSelection', 1);
+            } else if (e.key === "ArrowLeft") {
+                e.preventDefault();
+                this.compareRef?.invokeMethodAsync('MoveCompareSelection', -1);
+            }
+        });
+    },
+
+    createCompareChart: function (ctx, chartNumber) {
+        return new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    x: { 
+                        ticks: { display: false },
+                        min: undefined,
+                        max: undefined
+                    },
+                    y: {
+                        display: false
+                    }
+                },
+                plugins: {
+                    zoom: {
+                        zoom: { 
+                            wheel: { enabled: true }, 
+                            pinch: { enabled: true }, 
+                            mode: 'x',
+                            onZoom: function({chart}) {
+                                window.torqueApp.updateCompareScrollbar(chartNumber);
+                            }
+                        },
+                        pan: { 
+                            enabled: true, 
+                            mode: 'x',
+                            onPan: function({chart}) {
+                                window.torqueApp.updateCompareScrollbar(chartNumber);
+                            }
+                        },
+                        limits: {
+                            x: { min: 'original', max: 'original' }
+                        }
+                    },
+                    tooltip: {
+                        animation: false,
+                        callbacks: {
+                            label: function (context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                const originalValue = context.dataset.originalData[context.dataIndex];
+                                if (originalValue !== undefined && originalValue !== null) {
+                                    label += originalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                onClick: (e, elements) => {
+                    if (elements && elements.length > 0) {
+                        const index = elements[0].index;
+                        window.torqueApp.compareRef?.invokeMethodAsync('OnCompareChartClick', chartNumber, index);
+                    }
+                }
+            }
+        });
+    },
+
+    updateCompareChart: function (chartNumber, labels, datasets) {
+        const chart = chartNumber === 1 ? this.chart1 : this.chart2;
+        if (!chart) return;
+
+        chart.data.labels = labels;
+        chart.data.datasets = datasets;
+        
+        chart.options.scales.x.min = undefined;
+        chart.options.scales.x.max = undefined;
+        
+        chart.update();
+        
+        const scrollbarContainer = document.getElementById(`scrollbarContainer${chartNumber}`);
+        if (scrollbarContainer) {
+            scrollbarContainer.style.display = 'none';
+        }
+    },
+
+    highlightPointOnCompareChart: function (chartNumber, index) {
+        const chart = chartNumber === 1 ? this.chart1 : this.chart2;
+        if (!chart) return;
+
+        const activeElements = chart.data.datasets.map((ds, i) => ({
+            datasetIndex: i,
+            index: index
+        }));
+
+        chart.setActiveElements(activeElements);
+        chart.tooltip.setActiveElements(activeElements);
+        chart.update();
+    },
+
+    resetCompareChartZoom: function (chartNumber) {
+        const chart = chartNumber === 1 ? this.chart1 : this.chart2;
+        if (chart) {
+            chart.resetZoom();
+            
+            const scrollbarContainer = document.getElementById(`scrollbarContainer${chartNumber}`);
+            if (scrollbarContainer) {
+                scrollbarContainer.style.display = 'none';
+            }
+        }
+    },
+
+    initCompareScrollbar: function(chartNumber) {
+        const scrollbar = document.getElementById(`chartScrollbar${chartNumber}`);
+        if (!scrollbar) return;
+
+        scrollbar.addEventListener('input', (e) => {
+            const scrollPosition = parseFloat(e.target.value);
+            this.scrollCompareChartToPosition(chartNumber, scrollPosition);
+        });
+    },
+
+    updateCompareScrollbar: function(chartNumber) {
+        const chart = chartNumber === 1 ? this.chart1 : this.chart2;
+        if (!chart) return;
+        
+        const scrollbar = document.getElementById(`chartScrollbar${chartNumber}`);
+        const scrollbarContainer = document.getElementById(`scrollbarContainer${chartNumber}`);
+        if (!scrollbar || !scrollbarContainer) return;
+
+        const xScale = chart.scales.x;
+        const totalLabels = chart.data.labels.length;
+        
+        if (!xScale || totalLabels === 0) return;
+
+        const min = xScale.min || 0;
+        const max = xScale.max || totalLabels - 1;
+        const visibleRange = max - min;
+        
+        if (visibleRange >= totalLabels - 1) {
+            scrollbarContainer.style.display = 'none';
+            return;
+        }
+
+        scrollbarContainer.style.display = 'flex';
+        
+        scrollbar.value = min;
+        scrollbar.min = 0;
+        scrollbar.max = totalLabels - visibleRange;
+        scrollbar.step = 1;
+    },
+
+    scrollCompareChartToPosition: function(chartNumber, position) {
+        const chart = chartNumber === 1 ? this.chart1 : this.chart2;
+        if (!chart) return;
+
+        const totalLabels = chart.data.labels.length;
+        if (totalLabels === 0) return;
+
+        const xScale = chart.scales.x;
+        const currentMin = xScale.min || 0;
+        const currentMax = xScale.max || totalLabels - 1;
+        const visibleRange = currentMax - currentMin;
+
+        const newMin = position;
+        const newMax = position + visibleRange;
+
+        chart.options.scales.x.min = newMin;
+        chart.options.scales.x.max = newMax;
+        chart.update('none');
     }
 };

@@ -1,0 +1,1217 @@
+@page "/compare"
+@using System.Globalization
+@using System.Text.RegularExpressions
+@inject IJSRuntime JS
+
+<div class="compare-container">
+    <div class="compare-header">
+        <h3>Compare Log Segments</h3>
+    </div>
+
+    <div class="main-content">
+        <!-- Charts Section (Left Side - 2/3) -->
+        <div class="charts-wrapper">
+            <!-- Chart 1 -->
+            <div class="chart-section">
+                <div class="chart-controls">
+                    <h4>Chart 1</h4>
+                    <div class="controls-row">
+                        <button class="btn-import" @onclick="() => ImportDataToChart(1)" title="Import data from clipboard">
+                            &#128229; Import Data to Chart 1
+                        </button>
+
+                        @if (IsChart1Loaded)
+                        {
+                            <button class="btn-sync" @onclick="() => CopySensorsToClipboard(1)" title="Copy selected sensors">
+                                &#128203; Copy Sensors
+                            </button>
+
+                            <button class="btn-sync" @onclick="() => ImportSensorsFromClipboard(1)" title="Import sensors from clipboard">
+                                &#128229; Import Sensors
+                            </button>
+
+                            <button class="btn-reset" @onclick="() => ResetZoom(1)">&#8635; Reset Zoom</button>
+
+                            <button class="btn-remove" @onclick="() => RemoveFirstPoint(1)" title="Remove first point">
+                                &#10060; Remove First Point
+                            </button>
+
+                            <button class="btn-restore" @onclick="() => RestorePoints(1)" title="Restore all points">
+                                &#128259; Restore Points (@GetRemovedCount(1))
+                            </button>
+
+                            <div class="control-group">
+                                <label>X Axis:</label>
+                                <select @onchange="(e) => OnXAxisChanged(1, e)">
+                                    <option value="DeviceTime">Device Time</option>
+                                    <option value="Index">Index</option>
+                                </select>
+                            </div>
+
+                            <div class="control-group">
+                                <label>Sensors:</label>
+                                <div class="sensor-dropdown">
+                                    <button class="btn-dropdown">Select Sensors ?</button>
+                                    <div class="dropdown-content">
+                                        @foreach (var sensor in AvailableSensors1)
+                                        {
+                                            <label>
+                                                <input type="checkbox"
+                                                       checked="@SelectedSensors1.Contains(sensor)"
+                                                       @onchange="@(e => ToggleSensor(1, sensor, (bool)e.Value))" />
+                                                @sensor
+                                            </label>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="logChart1"></canvas>
+                </div>
+
+                <div id="scrollbarContainer1" class="scrollbar-container" style="display: none;">
+                    <label class="scrollbar-label">Navigation:</label>
+                    <input type="range" id="chartScrollbar1" class="chart-scrollbar" />
+                </div>
+
+                <div class="info-panel">
+                    @if (CurrentPoint1 != null)
+                    {
+                        <div>
+                            <strong>Selected Point (@CurrentIndex1):</strong>
+                            Time: @CurrentPoint1.DeviceTime.ToString("HH:mm:ss") |
+                            Speed: @GetValue(CurrentPoint1, "Speed (GPS)(km/h)") km/h |
+                            RPM: @GetValue(CurrentPoint1, "Engine RPM(rpm)")
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Chart 2 -->
+            <div class="chart-section">
+                <div class="chart-controls">
+                    <h4>Chart 2</h4>
+                    <div class="controls-row">
+                        <button class="btn-import" @onclick="() => ImportDataToChart(2)" title="Import data from clipboard">
+                            &#128229; Import Data to Chart 2
+                        </button>
+
+                        @if (IsChart2Loaded)
+                        {
+                            <button class="btn-sync" @onclick="() => CopySensorsToClipboard(2)" title="Copy selected sensors">
+                                &#128203; Copy Sensors
+                            </button>
+
+                            <button class="btn-sync" @onclick="() => ImportSensorsFromClipboard(2)" title="Import sensors from clipboard">
+                                &#128229; Import Sensors
+                            </button>
+
+                            <button class="btn-reset" @onclick="() => ResetZoom(2)">&#8635; Reset Zoom</button>
+
+                            <button class="btn-remove" @onclick="() => RemoveFirstPoint(2)" title="Remove first point">
+                                &#10060; Remove First Point
+                            </button>
+
+                            <button class="btn-restore" @onclick="() => RestorePoints(2)" title="Restore all points">
+                                &#128259; Restore Points (@GetRemovedCount(2))
+                            </button>
+
+                            <div class="control-group">
+                                <label>X Axis:</label>
+                                <select @onchange="(e) => OnXAxisChanged(2, e)">
+                                    <option value="DeviceTime">Device Time</option>
+                                    <option value="Index">Index</option>
+                                </select>
+                            </div>
+
+                            <div class="control-group">
+                                <label>Sensors:</label>
+                                <div class="sensor-dropdown">
+                                    <button class="btn-dropdown">Select Sensors ?</button>
+                                    <div class="dropdown-content">
+                                        @foreach (var sensor in AvailableSensors2)
+                                        {
+                                            <label>
+                                                <input type="checkbox"
+                                                       checked="@SelectedSensors2.Contains(sensor)"
+                                                       @onchange="@(e => ToggleSensor(2, sensor, (bool)e.Value))" />
+                                                @sensor
+                                            </label>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="logChart2"></canvas>
+                </div>
+
+                <div id="scrollbarContainer2" class="scrollbar-container" style="display: none;">
+                    <label class="scrollbar-label">Navigation:</label>
+                    <input type="range" id="chartScrollbar2" class="chart-scrollbar" />
+                </div>
+
+                <div class="info-panel">
+                    @if (CurrentPoint2 != null)
+                    {
+                        <div>
+                            <strong>Selected Point (@CurrentIndex2):</strong>
+                            Time: @CurrentPoint2.DeviceTime.ToString("HH:mm:ss") |
+                            Speed: @GetValue(CurrentPoint2, "Speed (GPS)(km/h)") km/h |
+                            RPM: @GetValue(CurrentPoint2, "Engine RPM(rpm)")
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Table Section (Right Side - 1/3) -->
+        <div class="comparison-table-section">
+            <div class="table-header">
+                <h4>Sensor Comparison</h4>
+            </div>
+            
+            @if (CurrentPoint1 != null || CurrentPoint2 != null)
+            {
+                <div class="table-container">
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Sensor</th>
+                                <th>Chart 1</th>
+                                <th>Chart 2</th>
+                                <th>Difference</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var sensor in GetAllSelectedSensors())
+                            {
+                                var value1 = GetSensorValue(CurrentPoint1, sensor);
+                                var value2 = GetSensorValue(CurrentPoint2, sensor);
+                                var diff = CalculateDifference(value1, value2);
+                                
+                                <tr>
+                                    <td class="sensor-name">@sensor</td>
+                                    <td class="value-cell">
+                                        @if (value1.HasValue)
+                                        {
+                                            <span>@value1.Value.ToString("F2")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="no-data">-</span>
+                                        }
+                                    </td>
+                                    <td class="value-cell">
+                                        @if (value2.HasValue)
+                                        {
+                                            <span>@value2.Value.ToString("F2")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="no-data">-</span>
+                                        }
+                                    </td>
+                                    <td class="diff-cell @GetDiffClass(diff)">
+                                        @if (diff.HasValue)
+                                        {
+                                            <span>@diff.Value.ToString("+0.00;-0.00;0.00")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="no-data">-</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="no-data-message">
+                    <p>Import data and select a point to see comparison</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .compare-container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100%;
+        overflow: hidden;
+        background-color: #f8f9fa;
+    }
+
+    .compare-header {
+        padding: 15px 20px;
+        background: #fff;
+        border-bottom: 2px solid #ccc;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    .compare-header h3 {
+        margin: 0;
+        font-size: 1.5rem;
+        color: #333;
+    }
+
+    .main-content {
+        flex: 1;
+        display: flex;
+        gap: 10px;
+        padding: 10px;
+        overflow: hidden;
+    }
+
+    .charts-wrapper {
+        flex: 2;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow-y: auto;
+    }
+
+    .chart-section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+        min-height: 400px;
+    }
+
+    .chart-controls {
+        padding: 10px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #ddd;
+        flex-shrink: 0;
+    }
+
+    .chart-controls h4 {
+        margin: 0 0 10px 0;
+        font-size: 1.1rem;
+        color: #555;
+    }
+
+    .controls-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .control-group {
+        display: flex;
+        flex-direction: column;
+        font-size: 0.8rem;
+    }
+
+    .btn-import, .btn-reset, .btn-sync, .btn-remove, .btn-restore {
+        padding: 5px 10px;
+        cursor: pointer;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    }
+
+    .btn-import {
+        background-color: #ff9800;
+    }
+
+    .btn-import:hover {
+        background-color: #e68900;
+    }
+
+    .btn-reset {
+        background-color: #4CAF50;
+    }
+
+    .btn-reset:hover {
+        background-color: #45a049;
+    }
+
+    .btn-sync {
+        background-color: #2196F3;
+    }
+
+    .btn-sync:hover {
+        background-color: #0b7dda;
+    }
+
+    .btn-remove {
+        padding: 5px 10px;
+        cursor: pointer;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        background-color: #f44336;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    }
+
+    .btn-remove:hover {
+        background-color: #d32f2f;
+    }
+
+    .btn-restore {
+        padding: 5px 10px;
+        cursor: pointer;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        background-color: #9c27b0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    }
+
+    .btn-restore:hover {
+        background-color: #7b1fa2;
+    }
+
+    .chart-container {
+        flex: 1;
+        position: relative;
+        padding: 10px;
+        overflow: hidden;
+        min-height: 250px;
+    }
+
+    .info-panel {
+        padding: 5px 10px;
+        background: #e9ecef;
+        font-size: 0.85rem;
+        border-top: 1px solid #ddd;
+        flex-shrink: 0;
+    }
+
+    .sensor-dropdown {
+        position: relative;
+        display: inline-block;
+    }
+
+    .btn-dropdown {
+        padding: 5px;
+        cursor: pointer;
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+
+    .dropdown-content {
+        display: none;
+        position: absolute;
+        background-color: #f9f9f9;
+        min-width: 250px;
+        max-height: 300px;
+        overflow-y: auto;
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        z-index: 1000;
+        padding: 10px;
+        border: 1px solid #ccc;
+    }
+
+    .sensor-dropdown:hover .dropdown-content {
+        display: block;
+    }
+
+    .dropdown-content label {
+        display: block;
+        margin-bottom: 5px;
+        cursor: pointer;
+    }
+
+    .scrollbar-container {
+        padding: 10px;
+        background: #fff;
+        border-top: 1px solid #ddd;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    .scrollbar-label {
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin: 0;
+        white-space: nowrap;
+    }
+
+    .chart-scrollbar {
+        flex: 1;
+        height: 8px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: #e0e0e0;
+        border-radius: 5px;
+        outline: none;
+        cursor: pointer;
+    }
+
+    .chart-scrollbar::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 60px;
+        height: 20px;
+        background: #4CAF50;
+        border-radius: 5px;
+        cursor: grab;
+    }
+
+    .chart-scrollbar::-webkit-slider-thumb:hover {
+        background: #45a049;
+    }
+
+    .chart-scrollbar::-moz-range-thumb {
+        width: 60px;
+        height: 20px;
+        background: #4CAF50;
+        border-radius: 5px;
+        border: none;
+        cursor: grab;
+    }
+
+    /* Comparison Table Styles */
+    .comparison-table-section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .table-header {
+        padding: 15px;
+        background: #f8f9fa;
+        border-bottom: 2px solid #ddd;
+        text-align: center;
+    }
+
+    .table-header h4 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: #555;
+    }
+
+    .table-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+    }
+
+    .comparison-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+
+    .comparison-table thead {
+        position: sticky;
+        top: 0;
+        background: #fff;
+        z-index: 10;
+    }
+
+    .comparison-table th {
+        padding: 8px 10px;
+        text-align: left;
+        border-bottom: 2px solid #ddd;
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #555;
+    }
+
+    .comparison-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .comparison-table tbody tr:hover {
+        background-color: #f5f5f5;
+    }
+
+    .sensor-name {
+        font-weight: 500;
+        color: #333;
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .value-cell {
+        text-align: right;
+        font-family: 'Courier New', monospace;
+    }
+
+    .diff-cell {
+        text-align: right;
+        font-family: 'Courier New', monospace;
+        font-weight: 600;
+    }
+
+    .diff-positive {
+        color: #4CAF50;
+    }
+
+    .diff-negative {
+        color: #f44336;
+    }
+
+    .diff-neutral {
+        color: #666;
+    }
+
+    .no-data {
+        color: #999;
+        font-style: italic;
+    }
+
+    .no-data-message {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        padding: 20px;
+        text-align: center;
+        color: #999;
+    }
+
+    .no-data-message p {
+        margin: 0;
+        font-size: 0.95rem;
+    }
+</style>
+
+@code {
+    // Chart 1 data
+    private bool IsChart1Loaded = false;
+    private List<LogPoint> LogData1 = new();
+    private List<LogPoint> OriginalLogData1 = new(); // Backup dos dados originais
+    private List<string> AvailableSensors1 = new();
+    private HashSet<string> SelectedSensors1 = new();
+    private LogPoint? CurrentPoint1;
+    private int CurrentIndex1 = -1;
+    private string XAxisMode1 = "DeviceTime";
+    private Dictionary<string, string> SensorColorMapping1 = new();
+
+    // Chart 2 data
+    private bool IsChart2Loaded = false;
+    private List<LogPoint> LogData2 = new();
+    private List<LogPoint> OriginalLogData2 = new(); // Backup dos dados originais
+    private List<string> AvailableSensors2 = new();
+    private HashSet<string> SelectedSensors2 = new();
+    private LogPoint? CurrentPoint2;
+    private int CurrentIndex2 = -1;
+    private string XAxisMode2 = "DeviceTime";
+    private Dictionary<string, string> SensorColorMapping2 = new();
+
+    private static readonly string[] ChartColors = { "#FF5733", "#33FF57", "#3357FF", "#FF33F6", "#33FFF6", "#F3FF33", "#FF8C33" };
+
+    private static readonly Dictionary<string, int> MonthMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "jan", 1 }, { "fev", 2 }, { "mar", 3 }, { "abr", 4 },
+        { "mai", 5 }, { "jun", 6 }, { "jul", 7 }, { "ago", 8 },
+        { "set", 9 }, { "out", 10 }, { "nov", 11 }, { "dez", 12 }
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("torqueApp.initCompareCharts", DotNetObjectReference.Create(this));
+        }
+    }
+
+    private async Task ImportDataToChart(int chartNumber)
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string>("torqueApp.readFromClipboard");
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                await JS.InvokeVoidAsync("alert", "Clipboard is empty.");
+                return;
+            }
+
+            var importedData = System.Text.Json.JsonSerializer.Deserialize<LogDataExport>(json);
+
+            if (importedData == null || importedData.Data == null || importedData.Data.Count == 0)
+            {
+                await JS.InvokeVoidAsync("alert", "Invalid data format.");
+                return;
+            }
+
+            if (chartNumber == 1)
+            {
+                LoadDataToChart1(importedData);
+            }
+            else
+            {
+                LoadDataToChart2(importedData);
+            }
+
+            await JS.InvokeVoidAsync("alert", $"Data imported successfully to Chart {chartNumber}!");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error importing: {ex.Message}");
+        }
+    }
+
+    private void LoadDataToChart1(LogDataExport importedData)
+    {
+        LogData1.Clear();
+        OriginalLogData1.Clear();
+        AvailableSensors1.Clear();
+        SelectedSensors1.Clear();
+        SensorColorMapping1.Clear();
+
+        // Get available sensors from first data point
+        if (importedData.Data.Count > 0 && importedData.Data[0].RawData != null)
+        {
+            AvailableSensors1.AddRange(importedData.Data[0].RawData.Keys);
+        }
+
+        // Load data points
+        foreach (var point in importedData.Data)
+        {
+            var newPoint = new LogPoint
+            {
+                DeviceTime = point.DeviceTime,
+                Latitude = point.Latitude,
+                Longitude = point.Longitude,
+                RawData = new Dictionary<string, double>(point.RawData)
+            };
+            
+            LogData1.Add(newPoint);
+            
+            // Create a copy for the backup
+            var backupPoint = new LogPoint
+            {
+                DeviceTime = point.DeviceTime,
+                Latitude = point.Latitude,
+                Longitude = point.Longitude,
+                RawData = new Dictionary<string, double>(point.RawData)
+            };
+            OriginalLogData1.Add(backupPoint);
+        }
+
+        // Select default sensors
+        var defaults = new[] { "Speed (GPS)(km/h)", "Engine RPM(rpm)", "Turbo Boost & Vacuum Gauge(bar)" };
+        foreach (var d in defaults)
+            if (AvailableSensors1.Contains(d))
+                SelectedSensors1.Add(d);
+
+        IsChart1Loaded = true;
+        UpdateChartData(1);
+    }
+
+    private void LoadDataToChart2(LogDataExport importedData)
+    {
+        LogData2.Clear();
+        OriginalLogData2.Clear();
+        AvailableSensors2.Clear();
+        SelectedSensors2.Clear();
+        SensorColorMapping2.Clear();
+
+        // Get available sensors from first data point
+        if (importedData.Data.Count > 0 && importedData.Data[0].RawData != null)
+        {
+            AvailableSensors2.AddRange(importedData.Data[0].RawData.Keys);
+        }
+
+        // Load data points
+        foreach (var point in importedData.Data)
+        {
+            var newPoint = new LogPoint
+            {
+                DeviceTime = point.DeviceTime,
+                Latitude = point.Latitude,
+                Longitude = point.Longitude,
+                RawData = new Dictionary<string, double>(point.RawData)
+            };
+            
+            LogData2.Add(newPoint);
+            
+            // Create a copy for the backup
+            var backupPoint = new LogPoint
+            {
+                DeviceTime = point.DeviceTime,
+                Latitude = point.Latitude,
+                Longitude = point.Longitude,
+                RawData = new Dictionary<string, double>(point.RawData)
+            };
+            OriginalLogData2.Add(backupPoint);
+        }
+
+        // Select default sensors
+        var defaults = new[] { "Speed (GPS)(km/h)", "Engine RPM(rpm)", "Turbo Boost & Vacuum Gauge(bar)" };
+        foreach (var d in defaults)
+            if (AvailableSensors2.Contains(d))
+                SelectedSensors2.Add(d);
+
+        IsChart2Loaded = true;
+        UpdateChartData(2);
+    }
+
+    private void UpdateChartData(int chartNumber)
+    {
+        if (chartNumber == 1 && !IsChart1Loaded) return;
+        if (chartNumber == 2 && !IsChart2Loaded) return;
+
+        var logData = chartNumber == 1 ? LogData1 : LogData2;
+        var selectedSensors = chartNumber == 1 ? SelectedSensors1 : SelectedSensors2;
+        var sensorColorMapping = chartNumber == 1 ? SensorColorMapping1 : SensorColorMapping2;
+        var xAxisMode = chartNumber == 1 ? XAxisMode1 : XAxisMode2;
+
+        // Prepare Labels
+        string[] labels;
+        if (xAxisMode == "DeviceTime")
+            labels = logData.Select(x => x.DeviceTime.ToString("HH:mm:ss")).ToArray();
+        else
+            labels = logData.Select((x, i) => i.ToString()).ToArray();
+
+        // Prepare Datasets
+        var datasets = new List<object>();
+        int colorIdx = 0;
+
+        foreach (var sensor in selectedSensors)
+        {
+            if (!sensorColorMapping.ContainsKey(sensor))
+            {
+                sensorColorMapping[sensor] = ChartColors[colorIdx % ChartColors.Length];
+            }
+
+            var rawData = logData.Select(p => p.RawData.ContainsKey(sensor) ? p.RawData[sensor] : 0).ToArray();
+
+            double min = rawData.Min();
+            double max = rawData.Max();
+            double range = max - min;
+
+            var normalizedData = rawData.Select(v => range == 0 ? 0.5 : (v - min) / range).ToArray();
+
+            datasets.Add(new
+            {
+                label = sensor,
+                data = normalizedData,
+                originalData = rawData,
+                borderColor = sensorColorMapping[sensor],
+                backgroundColor = "transparent",
+                borderWidth = 2,
+                pointRadius = 0,
+                pointHoverRadius = 4,
+                tension = 0.1
+            });
+            colorIdx++;
+        }
+
+        JS.InvokeVoidAsync("torqueApp.updateCompareChart", chartNumber, labels, datasets);
+    }
+
+    private void ToggleSensor(int chartNumber, string sensor, bool isChecked)
+    {
+        if (chartNumber == 1)
+        {
+            if (isChecked) SelectedSensors1.Add(sensor);
+            else SelectedSensors1.Remove(sensor);
+        }
+        else
+        {
+            if (isChecked) SelectedSensors2.Add(sensor);
+            else SelectedSensors2.Remove(sensor);
+        }
+        UpdateChartData(chartNumber);
+    }
+
+    private void OnXAxisChanged(int chartNumber, ChangeEventArgs e)
+    {
+        var mode = e.Value?.ToString() ?? "DeviceTime";
+        if (chartNumber == 1)
+            XAxisMode1 = mode;
+        else
+            XAxisMode2 = mode;
+        UpdateChartData(chartNumber);
+    }
+
+    [JSInvokable]
+    public void OnCompareChartClick(int chartNumber, int index)
+    {
+        SelectPoint(chartNumber, index);
+    }
+
+    private void SelectPoint(int chartNumber, int index)
+    {
+        if (chartNumber == 1)
+        {
+            if (index < 0 || index >= LogData1.Count) return;
+            CurrentIndex1 = index;
+            CurrentPoint1 = LogData1[index];
+            
+            // Synchronize with Chart 2
+            if (IsChart2Loaded && index < LogData2.Count)
+            {
+                CurrentIndex2 = index;
+                CurrentPoint2 = LogData2[index];
+                JS.InvokeVoidAsync("torqueApp.highlightPointOnCompareChart", 2, index);
+            }
+        }
+        else
+        {
+            if (index < 0 || index >= LogData2.Count) return;
+            CurrentIndex2 = index;
+            CurrentPoint2 = LogData2[index];
+            
+            // Synchronize with Chart 1
+            if (IsChart1Loaded && index < LogData1.Count)
+            {
+                CurrentIndex1 = index;
+                CurrentPoint1 = LogData1[index];
+                JS.InvokeVoidAsync("torqueApp.highlightPointOnCompareChart", 1, index);
+            }
+        }
+
+        StateHasChanged();
+        JS.InvokeVoidAsync("torqueApp.highlightPointOnCompareChart", chartNumber, index);
+    }
+
+    [JSInvokable]
+    public void MoveCompareSelection(int direction)
+    {
+        // Use Chart 1 as reference
+        if (!IsChart1Loaded || LogData1.Count == 0) return;
+
+        int newIndex = CurrentIndex1 + direction;
+
+        if (newIndex < 0) newIndex = 0;
+        if (newIndex >= LogData1.Count) newIndex = LogData1.Count - 1;
+
+        if (newIndex != CurrentIndex1)
+        {
+            SelectPoint(1, newIndex);
+        }
+    }
+
+    private async Task ResetZoom(int chartNumber)
+    {
+        await JS.InvokeVoidAsync("torqueApp.resetCompareChartZoom", chartNumber);
+    }
+
+    private async Task CopySensorsToClipboard(int chartNumber)
+    {
+        var selectedSensors = chartNumber == 1 ? SelectedSensors1 : SelectedSensors2;
+        var sensorColorMapping = chartNumber == 1 ? SensorColorMapping1 : SensorColorMapping2;
+
+        if (selectedSensors.Count == 0)
+        {
+            await JS.InvokeVoidAsync("alert", "No sensors selected to copy.");
+            return;
+        }
+
+        var sensorConfig = selectedSensors.Select(sensor => new
+        {
+            Name = sensor,
+            Color = sensorColorMapping.ContainsKey(sensor) ? sensorColorMapping[sensor] : ChartColors[0]
+        }).ToList();
+
+        var json = System.Text.Json.JsonSerializer.Serialize(sensorConfig, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+
+        await JS.InvokeVoidAsync("torqueApp.copyToClipboard", json);
+    }
+
+    private async Task ImportSensorsFromClipboard(int chartNumber)
+    {
+        var isLoaded = chartNumber == 1 ? IsChart1Loaded : IsChart2Loaded;
+
+        if (!isLoaded)
+        {
+            await JS.InvokeVoidAsync("alert", "Please import data first.");
+            return;
+        }
+
+        try
+        {
+            var json = await JS.InvokeAsync<string>("torqueApp.readFromClipboard");
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                await JS.InvokeVoidAsync("alert", "Clipboard is empty.");
+                return;
+            }
+
+            var sensorConfig = System.Text.Json.JsonSerializer.Deserialize<List<SensorConfiguration>>(json);
+
+            if (sensorConfig == null || sensorConfig.Count == 0)
+            {
+                await JS.InvokeVoidAsync("alert", "Invalid data format.");
+                return;
+            }
+
+            if (chartNumber == 1)
+            {
+                SelectedSensors1.Clear();
+                foreach (var config in sensorConfig)
+                {
+                    if (AvailableSensors1.Contains(config.Name))
+                    {
+                        SelectedSensors1.Add(config.Name);
+                        SensorColorMapping1[config.Name] = config.Color;
+                    }
+                }
+            }
+            else
+            {
+                SelectedSensors2.Clear();
+                foreach (var config in sensorConfig)
+                {
+                    if (AvailableSensors2.Contains(config.Name))
+                    {
+                        SelectedSensors2.Add(config.Name);
+                        SensorColorMapping2[config.Name] = config.Color;
+                    }
+                }
+            }
+
+            UpdateChartData(chartNumber);
+            StateHasChanged();
+
+            var count = chartNumber == 1 ? SelectedSensors1.Count : SelectedSensors2.Count;
+            await JS.InvokeVoidAsync("alert", $"{count} sensors imported successfully!");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error importing: {ex.Message}");
+        }
+    }
+
+    private string GetValue(LogPoint p, string key)
+    {
+        if (p.RawData.ContainsKey(key)) return p.RawData[key].ToString("F2");
+        return "-";
+    }
+
+    private List<string> GetAllSelectedSensors()
+    {
+        var allSensors = new HashSet<string>();
+        
+        if (IsChart1Loaded)
+        {
+            foreach (var sensor in SelectedSensors1)
+                allSensors.Add(sensor);
+        }
+        
+        if (IsChart2Loaded)
+        {
+            foreach (var sensor in SelectedSensors2)
+                allSensors.Add(sensor);
+        }
+        
+        return allSensors.OrderBy(s => s).ToList();
+    }
+
+    private double? GetSensorValue(LogPoint? point, string sensor)
+    {
+        if (point == null) return null;
+        if (point.RawData.ContainsKey(sensor))
+            return point.RawData[sensor];
+        return null;
+    }
+
+    private double? CalculateDifference(double? value1, double? value2)
+    {
+        if (!value1.HasValue || !value2.HasValue) return null;
+        return value2.Value - value1.Value;
+    }
+
+    private string GetDiffClass(double? diff)
+    {
+        if (!diff.HasValue) return "";
+        if (diff.Value > 0.01) return "diff-positive";
+        if (diff.Value < -0.01) return "diff-negative";
+        return "diff-neutral";
+    }
+
+    private void RemoveFirstPoint(int chartNumber)
+    {
+        if (chartNumber == 1)
+        {
+            if (!IsChart1Loaded || LogData1.Count == 0)
+            {
+                JS.InvokeVoidAsync("alert", "No data to remove.");
+                return;
+            }
+
+            // Remove the first point
+            LogData1.RemoveAt(0);
+
+            // Adjust current index if needed
+            if (CurrentIndex1 > 0)
+            {
+                CurrentIndex1--;
+            }
+            else if (CurrentIndex1 == 0 && LogData1.Count > 0)
+            {
+                CurrentPoint1 = LogData1[0];
+            }
+            else
+            {
+                CurrentPoint1 = null;
+                CurrentIndex1 = -1;
+            }
+
+            // Update the chart
+            UpdateChartData(1);
+            StateHasChanged();
+        }
+        else
+        {
+            if (!IsChart2Loaded || LogData2.Count == 0)
+            {
+                JS.InvokeVoidAsync("alert", "No data to remove.");
+                return;
+            }
+
+            // Remove the first point
+            LogData2.RemoveAt(0);
+
+            // Adjust current index if needed
+            if (CurrentIndex2 > 0)
+            {
+                CurrentIndex2--;
+            }
+            else if (CurrentIndex2 == 0 && LogData2.Count > 0)
+            {
+                CurrentPoint2 = LogData2[0];
+            }
+            else
+            {
+                CurrentPoint2 = null;
+                CurrentIndex2 = -1;
+            }
+
+            // Update the chart
+            UpdateChartData(2);
+            StateHasChanged();
+        }
+    }
+
+    private void RestorePoints(int chartNumber)
+    {
+        if (chartNumber == 1)
+        {
+            if (!IsChart1Loaded || OriginalLogData1.Count == 0)
+            {
+                JS.InvokeVoidAsync("alert", "No original data to restore.");
+                return;
+            }
+
+            // Restore from backup
+            LogData1.Clear();
+            foreach (var point in OriginalLogData1)
+            {
+                LogData1.Add(new LogPoint
+                {
+                    DeviceTime = point.DeviceTime,
+                    Latitude = point.Latitude,
+                    Longitude = point.Longitude,
+                    RawData = new Dictionary<string, double>(point.RawData)
+                });
+            }
+
+            // Reset current point
+            CurrentPoint1 = null;
+            CurrentIndex1 = -1;
+
+            // Update the chart
+            UpdateChartData(1);
+            StateHasChanged();
+        }
+        else
+        {
+            if (!IsChart2Loaded || OriginalLogData2.Count == 0)
+            {
+                JS.InvokeVoidAsync("alert", "No original data to restore.");
+                return;
+            }
+
+            // Restore from backup
+            LogData2.Clear();
+            foreach (var point in OriginalLogData2)
+            {
+                LogData2.Add(new LogPoint
+                {
+                    DeviceTime = point.DeviceTime,
+                    Latitude = point.Latitude,
+                    Longitude = point.Longitude,
+                    RawData = new Dictionary<string, double>(point.RawData)
+                });
+            }
+
+            // Reset current point
+            CurrentPoint2 = null;
+            CurrentIndex2 = -1;
+
+            // Update the chart
+            UpdateChartData(2);
+            StateHasChanged();
+        }
+    }
+
+    private int GetRemovedCount(int chartNumber)
+    {
+        if (chartNumber == 1)
+        {
+            return OriginalLogData1.Count - LogData1.Count;
+        }
+        else
+        {
+            return OriginalLogData2.Count - LogData2.Count;
+        }
+    }
+
+    public class LogPoint
+    {
+        public DateTime DeviceTime { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public Dictionary<string, double> RawData { get; set; } = new();
+    }
+
+    public class SensorConfiguration
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Color { get; set; } = string.Empty;
+    }
+
+    public class LogDataExport
+    {
+        public List<LogPoint> Data { get; set; } = new();
+    }
+}

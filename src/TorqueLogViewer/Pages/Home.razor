@@ -25,6 +25,18 @@
                     📥 Import Sensors
                 </button>
 
+                <button class="btn-export" @onclick="MarkStartPoint" title="Mark start of range">
+                    📍 Mark Start
+                </button>
+
+                <button class="btn-export" @onclick="MarkEndPoint" title="Mark end of range">
+                    📍 Mark End
+                </button>
+
+                <button class="btn-export" @onclick="ExportRangeToClipboard" title="Export range to clipboard">
+                    📤 Export Range
+                </button>
+
                 <div class="control-group">
                     <label>X Axis:</label>
                     <select @onchange="OnXAxisChanged">
@@ -71,6 +83,24 @@
                     Time: @CurrentPoint.DeviceTime.ToString("HH:mm:ss") |
                     Speed: @GetValue(CurrentPoint, "Speed (GPS)(km/h)") km/h |
                     RPM: @GetValue(CurrentPoint, "Engine RPM(rpm)")
+                </div>
+            }
+            @if (StartIndex >= 0 || EndIndex >= 0)
+            {
+                <div style="margin-top: 5px; color: #ff9800;">
+                    <strong>Export Range:</strong>
+                    @if (StartIndex >= 0)
+                    {
+                        <span>Start: @StartIndex</span>
+                    }
+                    @if (EndIndex >= 0)
+                    {
+                        <span style="margin-left: 10px;">End: @EndIndex</span>
+                    }
+                    @if (StartIndex >= 0 && EndIndex >= 0)
+                    {
+                        <span style="margin-left: 10px;">(@(EndIndex - StartIndex + 1) points)</span>
+                    }
                 </div>
             }
         </div>
@@ -141,6 +171,20 @@
 
     .btn-sync:hover {
         background-color: #0b7dda;
+    }
+
+    .btn-export {
+        padding: 5px 10px;
+        cursor: pointer;
+        background-color: #ff9800;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.85rem;
+    }
+
+    .btn-export:hover {
+        background-color: #e68900;
     }
 
     .chart-container {
@@ -256,9 +300,17 @@
     private int CurrentIndex = -1;
     private string XAxisMode = "DeviceTime";
 
+    // Export range tracking
+    private int StartIndex = -1;
+    private int EndIndex = -1;
+
     // Color mapping for sensors
     private static readonly string[] ChartColors = { "#FF5733", "#33FF57", "#3357FF", "#FF33F6", "#33FFF6", "#F3FF33", "#FF8C33" };
     private Dictionary<string, string> SensorColorMapping = new();
+
+    // Marked range points
+    private LogPoint? StartPoint = null;
+    private LogPoint? EndPoint = null;
 
     // Mapping of Portuguese month abbreviations to numbers
     private static readonly Dictionary<string, int> MonthMap = new(StringComparer.OrdinalIgnoreCase)
@@ -650,10 +702,106 @@
         }
     }
 
+    private void MarkStartPoint()
+    {
+        if (CurrentIndex < 0)
+        {
+            JS.InvokeVoidAsync("alert", "Please select a point on the chart first.");
+            return;
+        }
+
+        StartIndex = CurrentIndex;
+        
+        // Clear end if it's before start
+        if (EndIndex >= 0 && EndIndex < StartIndex)
+        {
+            EndIndex = -1;
+        }
+        
+        StateHasChanged();
+    }
+
+    private void MarkEndPoint()
+    {
+        if (CurrentIndex < 0)
+        {
+            JS.InvokeVoidAsync("alert", "Please select a point on the chart first.");
+            return;
+        }
+
+        if (StartIndex < 0)
+        {
+            JS.InvokeVoidAsync("alert", "Please mark the start point first.");
+            return;
+        }
+
+        if (CurrentIndex < StartIndex)
+        {
+            JS.InvokeVoidAsync("alert", "End point must be after start point.");
+            return;
+        }
+
+        EndIndex = CurrentIndex;
+        StateHasChanged();
+    }
+
+    private async Task ExportRangeToClipboard()
+    {
+        if (!IsDataLoaded)
+        {
+            await JS.InvokeVoidAsync("alert", "No data loaded.");
+            return;
+        }
+
+        if (StartIndex < 0 || EndIndex < 0)
+        {
+            await JS.InvokeVoidAsync("alert", "Please mark both start and end points first.");
+            return;
+        }
+
+        if (StartIndex > EndIndex)
+        {
+            await JS.InvokeVoidAsync("alert", "Invalid range: start point is after end point.");
+            return;
+        }
+
+        try
+        {
+            // Extract the range of data
+            var rangeData = LogData.Skip(StartIndex).Take(EndIndex - StartIndex + 1).ToList();
+
+            // Create export object
+            var exportData = new LogDataExport
+            {
+                Data = rangeData
+            };
+
+            // Serialize to JSON
+            var json = System.Text.Json.JsonSerializer.Serialize(exportData, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+            // Copy to clipboard
+            await JS.InvokeVoidAsync("torqueApp.copyToClipboard", json);
+
+            await JS.InvokeVoidAsync("alert", $"Exported {rangeData.Count} data points to clipboard!");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error exporting: {ex.Message}");
+        }
+    }
+
     // Helper class for JSON serialization
     public class SensorConfiguration
     {
         public string Name { get; set; } = string.Empty;
         public string Color { get; set; } = string.Empty;
+    }
+
+    public class LogDataExport
+    {
+        public List<LogPoint> Data { get; set; } = new();
     }
 }
