@@ -4,146 +4,151 @@
 @inject IJSRuntime JS
 
 <div class="layout-container">
-    <div id="map" class="map-container"></div>
+    @if (IsDataLoaded)
+    {
+        <TorqueLogViewer.Components.SensorSidebar 
+            AvailableSensors="@AvailableSensors"
+            SelectedSensors="@SelectedSensors"
+            SensorColorMapping="@SensorColorMapping"
+            OnSensorToggle="@HandleSensorToggle"
+            @bind-IsExpanded="@IsSensorSidebarExpanded" />
+    }
 
-    <div class="chart-area">
-        <div class="controls-bar">
-            <div class="control-group">
-                <label>Load Log (CSV):</label>
-                <InputFile OnChange="HandleFileSelected" />
+    <div class="content-area">
+        @if (IsMapVisible)
+        {
+            <div class="map-area">
+                <div id="map" class="map-container"></div>
+            </div>
+        }
+
+        <div class="chart-area">
+            <div class="controls-bar">
+                <div class="control-group">
+                    <label>Load Log (CSV):</label>
+                    <InputFile OnChange="HandleFileSelected" />
+                </div>
+
+                @if (!IsDataLoaded)
+                {
+                    <div class="control-group">
+                        <label>Sampling Mode:</label>
+                        <select @bind="SamplingMode" class="form-select-small">
+                            <option value="None">No Sampling (All Points)</option>
+                            <option value="Time">Time Interval</option>
+                            <option value="Index">Every N Points</option>
+                        </select>
+                    </div>
+
+                    @if (SamplingMode == "Time")
+                    {
+                        <div class="control-group">
+                            <label>Interval (ms):</label>
+                            <input type="number" @bind="SamplingTimeMs" min="10" max="10000" step="10" class="form-input-small" />
+                        </div>
+                    }
+                    else if (SamplingMode == "Index")
+                    {
+                        <div class="control-group">
+                            <label>Every N points:</label>
+                            <input type="number" @bind="SamplingEveryN" min="1" max="1000" step="1" class="form-input-small" />
+                        </div>
+                    }
+                }
+
+                @if (IsDataLoaded)
+                {
+                    <button class="btn-toggle-map" @onclick="ToggleMapVisibility" title="@(IsMapVisible ? "Hide Map" : "Show Map")">
+                        @(IsMapVisible ? "🗺️ Hide Map" : "🗺️ Show Map")
+                    </button>
+
+                    <div class="info-badge">
+                        <span>📊 @LogData.Count points loaded</span>
+                        @if (TotalPointsBeforeSampling > LogData.Count)
+                        {
+                            <span style="margin-left: 10px; color: #ff9800;">
+                                (sampled from @TotalPointsBeforeSampling)
+                            </span>
+                        }
+                    </div>
+
+                    <button class="btn-reset" @onclick="ResetZoom">⟲ Reset Zoom</button>
+
+                    <button class="btn-sync" @onclick="CopySensorsToClipboard" title="Copy selected sensors">
+                        📋 Copy Sensors
+                    </button>
+
+                    <button class="btn-sync" @onclick="ImportSensorsFromClipboard" title="Import sensors from clipboard">
+                        📥 Import Sensors
+                    </button>
+
+                    <button class="btn-virtual" @onclick="OpenVirtualSensorModal" title="Create virtual sensor">
+                        ➕ Virtual Sensor
+                    </button>
+
+                    <button class="btn-export" @onclick="MarkStartPoint" title="Mark start of range">
+                        📍 Mark Start
+                    </button>
+
+                    <button class="btn-export" @onclick="MarkEndPoint" title="Mark end of range">
+                        📍 Mark End
+                    </button>
+
+                    <button class="btn-export" @onclick="ExportRangeToClipboard" title="Export range to clipboard">
+                        📤 Export Range
+                    </button>
+
+                    <div class="control-group">
+                        <label>X Axis:</label>
+                        <select @onchange="OnXAxisChanged">
+                            <option value="DeviceTime">Device Time (Default)</option>
+                            <option value="Index">Index (Sequence)</option>
+                        </select>
+                    </div>
+                }
             </div>
 
-            @if (!IsDataLoaded)
-            {
-                <div class="control-group">
-                    <label>Sampling Mode:</label>
-                    <select @bind="SamplingMode" class="form-select-small">
-                        <option value="None">No Sampling (All Points)</option>
-                        <option value="Time">Time Interval</option>
-                        <option value="Index">Every N Points</option>
-                    </select>
+            <div class="chart-wrapper">
+                <div class="chart-container">
+                    <canvas id="logChart"></canvas>
                 </div>
+            </div>
+            
+            <div id="scrollbarContainer" class="scrollbar-container" style="display: none;">
+                <label class="scrollbar-label">Navigation:</label>
+                <input type="range" id="chartScrollbar" class="chart-scrollbar" />
+            </div>
 
-                @if (SamplingMode == "Time")
+            <div class="info-panel">
+                @if (CurrentPoint != null)
                 {
-                    <div class="control-group">
-                        <label>Interval (ms):</label>
-                        <input type="number" @bind="SamplingTimeMs" min="10" max="10000" step="10" class="form-input-small" />
+                    <div>
+                        <strong>Selected Point (@CurrentIndex):</strong>
+                        Time: @CurrentPoint.DeviceTime.ToString() |
+                        Time: @CurrentPoint.DeviceTime.ToString("HH:mm:ss") |
+                        Speed: @GetValue(CurrentPoint, "Speed (GPS)(km/h)") km/h |
+                        RPM: @GetValue(CurrentPoint, "Engine RPM(rpm)")
                     </div>
                 }
-                else if (SamplingMode == "Index")
+                @if (StartIndex >= 0 || EndIndex >= 0)
                 {
-                    <div class="control-group">
-                        <label>Every N points:</label>
-                        <input type="number" @bind="SamplingEveryN" min="1" max="1000" step="1" class="form-input-small" />
+                    <div style="margin-top: 5px; color: #ff9800;">
+                        <strong>Export Range:</strong>
+                        @if (StartIndex >= 0)
+                        {
+                            <span>Start: @StartIndex</span>
+                        }
+                        @if (EndIndex >= 0)
+                        {
+                            <span style="margin-left: 10px;">End: @EndIndex</span>
+                        }
+                        @if (StartIndex >= 0 && EndIndex >= 0)
+                        {
+                            <span style="margin-left: 10px;">(@(EndIndex - StartIndex + 1) points)</span>
+                        }
                     </div>
                 }
-            }
-
-            @if (IsDataLoaded)
-            {
-                <div class="info-badge">
-                    <span>📊 @LogData.Count points loaded</span>
-                    @if (TotalPointsBeforeSampling > LogData.Count)
-                    {
-                        <span style="margin-left: 10px; color: #ff9800;">
-                            (sampled from @TotalPointsBeforeSampling)
-                        </span>
-                    }
-                </div>
-
-                <button class="btn-reset" @onclick="ResetZoom">⟲ Reset Zoom</button>
-
-                <button class="btn-sync" @onclick="CopySensorsToClipboard" title="Copy selected sensors">
-                    📋 Copy Sensors
-                </button>
-
-                <button class="btn-sync" @onclick="ImportSensorsFromClipboard" title="Import sensors from clipboard">
-                    📥 Import Sensors
-                </button>
-
-                <button class="btn-virtual" @onclick="OpenVirtualSensorModal" title="Create virtual sensor">
-                    ➕ Virtual Sensor
-                </button>
-
-                <button class="btn-export" @onclick="MarkStartPoint" title="Mark start of range">
-                    📍 Mark Start
-                </button>
-
-                <button class="btn-export" @onclick="MarkEndPoint" title="Mark end of range">
-                    📍 Mark End
-                </button>
-
-                <button class="btn-export" @onclick="ExportRangeToClipboard" title="Export range to clipboard">
-                    📤 Export Range
-                </button>
-
-                <div class="control-group">
-                    <label>X Axis:</label>
-                    <select @onchange="OnXAxisChanged">
-                        <option value="DeviceTime">Device Time (Default)</option>
-                        <option value="Index">Index (Sequence)</option>
-                    </select>
-                </div>
-
-                <div class="control-group">
-                    <label>Sensors:</label>
-                    <div class="sensor-dropdown">
-                        <button class="btn-dropdown">Select Sensors ▼</button>
-                        <div class="dropdown-content">
-                            @foreach (var sensor in AvailableSensors)
-                            {
-                                <label>
-                                    <input type="checkbox"
-                                           checked="@SelectedSensors.Contains(sensor)"
-                                           @onchange="@(e => ToggleSensor(sensor, (bool)e.Value))" />
-                                    @sensor
-                                </label>
-                            }
-                        </div>
-                    </div>
-                </div>
-            }
-        </div>
-
-        <div class="chart-container">
-            <canvas id="logChart"></canvas>
-        </div>
-        
-        <div id="scrollbarContainer" class="scrollbar-container" style="display: none;">
-            <label class="scrollbar-label">Navigation:</label>
-            <input type="range" id="chartScrollbar" class="chart-scrollbar" />
-        </div>
-
-        <div class="info-panel">
-            @if (CurrentPoint != null)
-            {
-                <div>
-                    <strong>Selected Point (@CurrentIndex):</strong>
-                    Time: @CurrentPoint.DeviceTime.ToString() |
-                    Time: @CurrentPoint.DeviceTime.ToString("HH:mm:ss") |
-                    Speed: @GetValue(CurrentPoint, "Speed (GPS)(km/h)") km/h |
-                    RPM: @GetValue(CurrentPoint, "Engine RPM(rpm)")
-                </div>
-            }
-            @if (StartIndex >= 0 || EndIndex >= 0)
-            {
-                <div style="margin-top: 5px; color: #ff9800;">
-                    <strong>Export Range:</strong>
-                    @if (StartIndex >= 0)
-                    {
-                        <span>Start: @StartIndex</span>
-                    }
-                    @if (EndIndex >= 0)
-                    {
-                        <span style="margin-left: 10px;">End: @EndIndex</span>
-                    }
-                    @if (StartIndex >= 0 && EndIndex >= 0)
-                    {
-                        <span style="margin-left: 10px;">(@(EndIndex - StartIndex + 1) points)</span>
-                    }
-                </div>
-            }
+            </div>
         </div>
     </div>
 </div>
@@ -207,17 +212,29 @@
     /* Basic Styles for Split Layout */
     .layout-container {
         display: flex;
-        flex-direction: column;
         height: 100%;
         width: 100%;
         overflow: hidden;
     }
 
-    .map-container {
-        flex: 1; /* Takes up half or whatever remains */
+    .content-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .map-area {
+        flex: 1;
         min-height: 35vh;
         max-height: 35vh;
         width: 100%;
+        border-bottom: 2px solid #ccc;
+    }
+
+    .map-container {
+        width: 100%;
+        height: 100%;
         z-index: 1;
     }
 
@@ -227,7 +244,6 @@
         display: flex;
         flex-direction: column;
         background-color: #f8f9fa;
-        border-top: 2px solid #ccc;
     }
 
     .controls-bar {
@@ -247,7 +263,7 @@
         font-size: 0.8rem;
     }
 
-    .btn-reset, .btn-sync {
+    .btn-reset, .btn-sync, .btn-toggle-map {
         padding: 5px 10px;
         cursor: pointer;
         background-color: #4CAF50;
@@ -257,8 +273,16 @@
         font-size: 0.85rem;
     }
 
-    .btn-reset:hover, .btn-sync:hover {
+    .btn-reset:hover, .btn-sync:hover, .btn-toggle-map:hover {
         background-color: #45a049;
+    }
+
+    .btn-toggle-map {
+        background-color: #607d8b;
+    }
+
+    .btn-toggle-map:hover {
+        background-color: #546e7a;
     }
 
     .btn-sync {
@@ -297,8 +321,15 @@
         background-color: #e68900;
     }
 
-    .chart-container {
+    .chart-wrapper {
         flex: 1;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .chart-container {
+        width: 100%;
+        height: 100%;
         position: relative;
         padding: 10px;
         overflow: hidden;
@@ -311,24 +342,6 @@
         border-top: 1px solid #ddd;
         flex-shrink: 0;
     }
-
-    /* Simple CSS Dropdown */
-    .sensor-dropdown { position: relative; display: inline-block; }
-    .btn-dropdown { padding: 5px; cursor: pointer; }
-    .dropdown-content {
-        display: none;
-        position: absolute;
-        background-color: #f9f9f9;
-        min-width: 250px;
-        max-height: 300px;
-        overflow-y: auto;
-        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-        z-index: 1000;
-        padding: 10px;
-        border: 1px solid #ccc;
-    }
-    .sensor-dropdown:hover .dropdown-content { display: block; }
-    .dropdown-content label { display: block; margin-bottom: 5px; cursor: pointer; }
 
     /* Horizontal scrollbar for chart navigation */
     .scrollbar-container {
@@ -543,6 +556,8 @@
     private List<LogPoint> LogData = new();
     private List<string> AvailableSensors = new();
     private HashSet<string> SelectedSensors = new();
+    private bool IsSensorSidebarExpanded = true;
+    private bool IsMapVisible = true;
 
     // Sampling configuration
     private string SamplingMode = "None"; // None, Time, Index
@@ -663,9 +678,7 @@
             if (!ignoreCols.Contains(h)) AvailableSensors.Add(h);
         }
 
-        // Select some default sensors
-        var defaults = new[] { "Speed (GPS)(km/h)", "Engine RPM(rpm)", "Turbo Boost & Vacuum Gauge(bar)" };
-        foreach (var d in defaults) if (AvailableSensors.Contains(d)) SelectedSensors.Add(d);
+        // No default sensors selected - user must choose which sensors to display
 
         // Parse lines into temporary list
         var allPoints = new List<LogPoint>();
@@ -983,6 +996,26 @@
         if (isChecked) SelectedSensors.Add(sensor);
         else SelectedSensors.Remove(sensor);
         UpdateChartData();
+    }
+
+    private void HandleSensorToggle((string sensor, bool isSelected) args)
+    {
+        if (args.isSelected)
+        {
+            SelectedSensors.Add(args.sensor);
+        }
+        else
+        {
+            SelectedSensors.Remove(args.sensor);
+        }
+        UpdateChartData();
+        StateHasChanged();
+    }
+
+    private void ToggleMapVisibility()
+    {
+        IsMapVisible = !IsMapVisible;
+        StateHasChanged();
     }
 
     private void OnXAxisChanged(ChangeEventArgs e)

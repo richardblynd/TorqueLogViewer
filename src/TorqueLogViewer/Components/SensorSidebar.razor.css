@@ -1,0 +1,300 @@
+/* Sensor Sidebar Styles */
+.sensor-sidebar {
+    position: relative;
+    background: #ffffff;
+    border-right: 1px solid #ddd;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+}
+
+.sensor-sidebar.expanded {
+    width: 320px;
+    min-width: 320px;
+}
+
+.sensor-sidebar.collapsed {
+    width: 50px;
+    min-width: 50px;
+}
+
+.sidebar-toggle {
+    position: absolute;
+    top: 10px;
+    right: -15px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #4CAF50;
+    color: white;
+    border: 2px solid #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s;
+    z-index: 101;
+}
+
+.sidebar-toggle span {
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-toggle:hover {
+    background: #45a049;
+    transform: scale(1.1);
+}
+
+.sidebar-toggle:active {
+    transform: scale(0.95);
+}
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    padding: 15px;
+}
+
+.sidebar-header {
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #4CAF50;
+}
+
+.sidebar-header h3 {
+    margin: 0 0 8px 0;
+    font-size: 1.1rem;
+    color: #333;
+    font-weight: 600;
+}
+
+.sensor-count {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.selected-count {
+    color: #4CAF50;
+    font-weight: 600;
+}
+
+.total-count {
+    color: #999;
+}
+
+/* Filter Section */
+.filter-section {
+    position: relative;
+    margin-bottom: 15px;
+}
+
+.filter-input {
+    width: 100%;
+    padding: 8px 30px 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+}
+
+.filter-input:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+}
+
+.filter-input::placeholder {
+    color: #999;
+}
+
+.clear-filter {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 4px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.clear-filter:hover {
+    color: #666;
+}
+
+/* Sensors Container */
+.sensors-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin: 0 -5px;
+    padding: 0 5px;
+}
+
+.sensors-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sensors-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.sensors-container::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.sensors-container::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+/* Sensor Sections */
+.sensor-section {
+    margin-bottom: 20px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 5px 8px;
+    background: #f5f5f5;
+    border-radius: 4px;
+}
+
+.section-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.selected-section .section-title {
+    color: #4CAF50;
+}
+
+.clear-all-btn {
+    padding: 3px 8px;
+    font-size: 0.75rem;
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.clear-all-btn:hover {
+    background: #d32f2f;
+}
+
+/* Sensor List */
+.sensor-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sensor-item {
+    padding: 6px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.sensor-item:hover {
+    background-color: #f9f9f9;
+}
+
+.sensor-item.selected {
+    background-color: #e8f5e9;
+}
+
+.sensor-item.selected:hover {
+    background-color: #c8e6c9;
+}
+
+.sensor-item label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    margin: 0;
+    font-size: 0.85rem;
+    color: #333;
+}
+
+.sensor-item input[type="checkbox"] {
+    margin: 0 8px 0 0;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+.sensor-color {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    margin-right: 8px;
+    flex-shrink: 0;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sensor-name {
+    flex: 1;
+    word-break: break-word;
+    line-height: 1.3;
+}
+
+.no-results {
+    padding: 20px;
+    text-align: center;
+    color: #999;
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+/* Animation for sensor items */
+.sensor-item {
+    animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .sensor-sidebar.expanded {
+        width: 280px;
+        min-width: 280px;
+    }
+    
+    .sidebar-content {
+        padding: 10px;
+    }
+}

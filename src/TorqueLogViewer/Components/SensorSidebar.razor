@@ -1,0 +1,183 @@
+@inject IJSRuntime JS
+
+<div class="sensor-sidebar @(IsExpanded ? "expanded" : "collapsed")">
+    <button class="sidebar-toggle" @onclick="ToggleSidebar" title="@(IsExpanded ? "Collapse sidebar" : "Expand sidebar")">
+        @if (IsExpanded)
+        {
+            <span>&times;</span>
+        }
+        else
+        {
+            <span>&#9776;</span>
+        }
+    </button>
+
+    @if (IsExpanded)
+    {
+        <div class="sidebar-content">
+            <div class="sidebar-header">
+                <h3>Sensors</h3>
+                <div class="sensor-count">
+                    <span class="selected-count">@SelectedSensors.Count selected</span>
+                    <span class="total-count">/ @AvailableSensors.Count total</span>
+                </div>
+            </div>
+
+            <div class="filter-section">
+                <input type="text" 
+                       class="filter-input" 
+                       placeholder="&#128269; Filter sensors..." 
+                       @bind="FilterText" 
+                       @bind:event="oninput"
+                       @onkeyup="OnFilterChanged" />
+                @if (!string.IsNullOrWhiteSpace(FilterText))
+                {
+                    <button class="clear-filter" @onclick="ClearFilter" title="Clear filter">&times;</button>
+                }
+            </div>
+
+            <div class="sensors-container">
+                @if (SelectedSensors.Count > 0)
+                {
+                    <div class="sensor-section selected-section">
+                        <div class="section-header">
+                            <span class="section-title">Selected (@SelectedSensors.Count)</span>
+                            @if (SelectedSensors.Count > 0)
+                            {
+                                <button class="clear-all-btn" @onclick="ClearAllSelections" title="Clear all selections">
+                                    Clear All
+                                </button>
+                            }
+                        </div>
+                        <div class="sensor-list">
+                            @foreach (var sensor in GetFilteredSelectedSensors())
+                            {
+                                <div class="sensor-item selected" @key="sensor">
+                                    <label>
+                                        <input type="checkbox"
+                                               checked="@SelectedSensors.Contains(sensor)"
+                                               @onchange="@(e => OnSensorToggled(sensor, (bool)e.Value!))" />
+                                        <span class="sensor-color" style="background-color: @GetSensorColor(sensor);"></span>
+                                        <span class="sensor-name">@sensor</span>
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div class="sensor-section available-section">
+                    <div class="section-header">
+                        <span class="section-title">Available (@GetFilteredAvailableSensors().Count())</span>
+                    </div>
+                    <div class="sensor-list">
+                        @{
+                            var availableSensors = GetFilteredAvailableSensors();
+                            if (availableSensors.Any())
+                            {
+                                @foreach (var sensor in availableSensors)
+                                {
+                                    <div class="sensor-item" @key="sensor">
+                                        <label>
+                                            <input type="checkbox"
+                                                   checked="@SelectedSensors.Contains(sensor)"
+                                                   @onchange="@(e => OnSensorToggled(sensor, (bool)e.Value!))" />
+                                            <span class="sensor-name">@sensor</span>
+                                        </label>
+                                    </div>
+                                }
+                            }
+                            else if (!string.IsNullOrWhiteSpace(FilterText))
+                            {
+                                <div class="no-results">
+                                    No sensors match your filter.
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public List<string> AvailableSensors { get; set; } = new();
+
+    [Parameter]
+    public HashSet<string> SelectedSensors { get; set; } = new();
+
+    [Parameter]
+    public Dictionary<string, string> SensorColorMapping { get; set; } = new();
+
+    [Parameter]
+    public EventCallback<(string sensor, bool isSelected)> OnSensorToggle { get; set; }
+
+    [Parameter]
+    public bool IsExpanded { get; set; } = true;
+
+    [Parameter]
+    public EventCallback<bool> IsExpandedChanged { get; set; }
+
+    private string FilterText { get; set; } = string.Empty;
+
+    private void ToggleSidebar()
+    {
+        IsExpanded = !IsExpanded;
+        IsExpandedChanged.InvokeAsync(IsExpanded);
+    }
+
+    private void OnFilterChanged()
+    {
+        StateHasChanged();
+    }
+
+    private void ClearFilter()
+    {
+        FilterText = string.Empty;
+        StateHasChanged();
+    }
+
+    private void OnSensorToggled(string sensor, bool isSelected)
+    {
+        OnSensorToggle.InvokeAsync((sensor, isSelected));
+    }
+
+    private void ClearAllSelections()
+    {
+        // Create a copy to avoid modification during iteration
+        var sensorsToRemove = SelectedSensors.ToList();
+        foreach (var sensor in sensorsToRemove)
+        {
+            OnSensorToggled(sensor, false);
+        }
+    }
+
+    private IEnumerable<string> GetFilteredSelectedSensors()
+    {
+        if (string.IsNullOrWhiteSpace(FilterText))
+            return SelectedSensors.OrderBy(s => s);
+
+        return SelectedSensors
+            .Where(s => s.Contains(FilterText, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s);
+    }
+
+    private IEnumerable<string> GetFilteredAvailableSensors()
+    {
+        var available = AvailableSensors.Except(SelectedSensors);
+
+        if (string.IsNullOrWhiteSpace(FilterText))
+            return available.OrderBy(s => s);
+
+        return available
+            .Where(s => s.Contains(FilterText, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s);
+    }
+
+    private string GetSensorColor(string sensor)
+    {
+        return SensorColorMapping.ContainsKey(sensor) ? SensorColorMapping[sensor] : "#999";
+    }
+}
