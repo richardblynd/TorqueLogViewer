@@ -13,8 +13,45 @@
                 <InputFile OnChange="HandleFileSelected" />
             </div>
 
+            @if (!IsDataLoaded)
+            {
+                <div class="control-group">
+                    <label>Sampling Mode:</label>
+                    <select @bind="SamplingMode" class="form-select-small">
+                        <option value="None">No Sampling (All Points)</option>
+                        <option value="Time">Time Interval</option>
+                        <option value="Index">Every N Points</option>
+                    </select>
+                </div>
+
+                @if (SamplingMode == "Time")
+                {
+                    <div class="control-group">
+                        <label>Interval (ms):</label>
+                        <input type="number" @bind="SamplingTimeMs" min="10" max="10000" step="10" class="form-input-small" />
+                    </div>
+                }
+                else if (SamplingMode == "Index")
+                {
+                    <div class="control-group">
+                        <label>Every N points:</label>
+                        <input type="number" @bind="SamplingEveryN" min="1" max="1000" step="1" class="form-input-small" />
+                    </div>
+                }
+            }
+
             @if (IsDataLoaded)
             {
+                <div class="info-badge">
+                    <span>📊 @LogData.Count points loaded</span>
+                    @if (TotalPointsBeforeSampling > LogData.Count)
+                    {
+                        <span style="margin-left: 10px; color: #ff9800;">
+                            (sampled from @TotalPointsBeforeSampling)
+                        </span>
+                    }
+                </div>
+
                 <button class="btn-reset" @onclick="ResetZoom">⟲ Reset Zoom</button>
 
                 <button class="btn-sync" @onclick="CopySensorsToClipboard" title="Copy selected sensors">
@@ -475,6 +512,30 @@
     .btn-create:hover {
         background-color: #45a049;
     }
+
+    /* Additional Styles for Sampling Controls */
+    .form-select-small, .form-input-small {
+        padding: 5px 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        background: white;
+    }
+
+    .form-input-small {
+        width: 80px;
+    }
+
+    .info-badge {
+        padding: 5px 10px;
+        background-color: #e3f2fd;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #1976d2;
+        display: flex;
+        align-items: center;
+    }
 </style>
 
 @code {
@@ -482,6 +543,12 @@
     private List<LogPoint> LogData = new();
     private List<string> AvailableSensors = new();
     private HashSet<string> SelectedSensors = new();
+
+    // Sampling configuration
+    private string SamplingMode = "None"; // None, Time, Index
+    private int SamplingTimeMs = 100; // Sample every 100ms by default
+    private int SamplingEveryN = 10; // Sample every 10 points by default
+    private int TotalPointsBeforeSampling = 0;
 
     // Current state
     private LogPoint? CurrentPoint;
@@ -544,6 +611,7 @@
         AvailableSensors.Clear();
         SelectedSensors.Clear();
         VirtualSensors.Clear(); // Clear virtual sensors when loading new file
+        TotalPointsBeforeSampling = 0;
 
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length < 2) return;
@@ -599,7 +667,9 @@
         var defaults = new[] { "Speed (GPS)(km/h)", "Engine RPM(rpm)", "Turbo Boost & Vacuum Gauge(bar)" };
         foreach (var d in defaults) if (AvailableSensors.Contains(d)) SelectedSensors.Add(d);
 
-        // Parse lines
+        // Parse lines into temporary list
+        var allPoints = new List<LogPoint>();
+
         for (int i = 1; i < lines.Length; i++)
         {
             var cols = ParseCsvLine(lines[i]);
@@ -640,11 +710,74 @@
                 }
             }
 
-            LogData.Add(point);
+            allPoints.Add(point);
         }
+
+        TotalPointsBeforeSampling = allPoints.Count;
+
+        // Apply sampling if configured
+        LogData = ApplySampling(allPoints);
 
         IsDataLoaded = true;
         UpdateVisualization();
+    }
+
+    private List<LogPoint> ApplySampling(List<LogPoint> allPoints)
+    {
+        if (allPoints.Count == 0) return allPoints;
+
+        switch (SamplingMode)
+        {
+            case "Time":
+                return ApplyTimeSampling(allPoints, SamplingTimeMs);
+            
+            case "Index":
+                return ApplyIndexSampling(allPoints, SamplingEveryN);
+            
+            case "None":
+            default:
+                return allPoints;
+        }
+    }
+
+    private List<LogPoint> ApplyTimeSampling(List<LogPoint> allPoints, int intervalMs)
+    {
+        if (allPoints.Count == 0) return allPoints;
+
+        var sampledPoints = new List<LogPoint>();
+        DateTime? lastSampledTime = null;
+
+        foreach (var point in allPoints)
+        {
+            if (lastSampledTime == null || 
+                (point.DeviceTime - lastSampledTime.Value).TotalMilliseconds >= intervalMs)
+            {
+                sampledPoints.Add(point);
+                lastSampledTime = point.DeviceTime;
+            }
+        }
+
+        return sampledPoints;
+    }
+
+    private List<LogPoint> ApplyIndexSampling(List<LogPoint> allPoints, int everyN)
+    {
+        if (allPoints.Count == 0 || everyN <= 0) return allPoints;
+
+        var sampledPoints = new List<LogPoint>();
+        
+        for (int i = 0; i < allPoints.Count; i += everyN)
+        {
+            sampledPoints.Add(allPoints[i]);
+        }
+
+        // Always include the last point if not already included
+        if (sampledPoints.Count > 0 && sampledPoints[sampledPoints.Count - 1] != allPoints[allPoints.Count - 1])
+        {
+            sampledPoints.Add(allPoints[allPoints.Count - 1]);
+        }
+
+        return sampledPoints;
     }
 
     private string[] ParseCsvLine(string line)
