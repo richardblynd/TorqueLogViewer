@@ -25,6 +25,10 @@
                     📥 Import Sensors
                 </button>
 
+                <button class="btn-virtual" @onclick="OpenVirtualSensorModal" title="Create virtual sensor">
+                    ➕ Virtual Sensor
+                </button>
+
                 <button class="btn-export" @onclick="MarkStartPoint" title="Mark start of range">
                     📍 Mark Start
                 </button>
@@ -107,6 +111,61 @@
     </div>
 </div>
 
+@* Virtual Sensor Modal *@
+@if (ShowVirtualSensorModal)
+{
+    <div class="modal-overlay" @onclick="CloseVirtualSensorModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Create Virtual Sensor</h3>
+                <button class="btn-close" @onclick="CloseVirtualSensorModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Virtual Sensor Name:</label>
+                    <input type="text" @bind="VirtualSensorName" placeholder="e.g., Power Calculation" class="form-input" />
+                </div>
+
+                <div class="form-group">
+                    <label>First Sensor:</label>
+                    <select @bind="VirtualSensorA" class="form-select">
+                        <option value="">-- Select Sensor --</option>
+                        @foreach (var sensor in AvailableSensors)
+                        {
+                            <option value="@sensor">@sensor</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Operation:</label>
+                    <select @bind="VirtualSensorOperation" class="form-select">
+                        <option value="+">Addition (+)</option>
+                        <option value="-">Subtraction (-)</option>
+                        <option value="*">Multiplication (×)</option>
+                        <option value="/">Division (÷)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Second Sensor:</label>
+                    <select @bind="VirtualSensorB" class="form-select">
+                        <option value="">-- Select Sensor --</option>
+                        @foreach (var sensor in AvailableSensors)
+                        {
+                            <option value="@sensor">@sensor</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="CloseVirtualSensorModal">Cancel</button>
+                <button class="btn-create" @onclick="CreateVirtualSensor">Create</button>
+            </div>
+        </div>
+    </div>
+}
+
 <style>
     /* Basic Styles for Split Layout */
     .layout-container {
@@ -171,6 +230,20 @@
 
     .btn-sync:hover {
         background-color: #0b7dda;
+    }
+
+    .btn-virtual {
+        padding: 5px 10px;
+        cursor: pointer;
+        background-color: #9c27b0;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.85rem;
+    }
+
+    .btn-virtual:hover {
+        background-color: #7b1fa2;
     }
 
     .btn-export {
@@ -287,6 +360,121 @@
         cursor: grabbing;
         background: #3d8b40;
     }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-header {
+        padding: 20px;
+        border-bottom: 1px solid #ddd;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+    }
+
+    .btn-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #666;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-close:hover {
+        color: #000;
+    }
+
+    .modal-body {
+        padding: 20px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+
+    .form-input, .form-select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+
+    .form-input:focus, .form-select:focus {
+        outline: none;
+        border-color: #4CAF50;
+    }
+
+    .modal-footer {
+        padding: 15px 20px;
+        border-top: 1px solid #ddd;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .btn-cancel, .btn-create {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+
+    .btn-cancel {
+        background-color: #f44336;
+        color: white;
+    }
+
+    .btn-cancel:hover {
+        background-color: #d32f2f;
+    }
+
+    .btn-create {
+        background-color: #4CAF50;
+        color: white;
+    }
+
+    .btn-create:hover {
+        background-color: #45a049;
+    }
 </style>
 
 @code {
@@ -311,6 +499,14 @@
     // Marked range points
     private LogPoint? StartPoint = null;
     private LogPoint? EndPoint = null;
+
+    // Virtual sensor state
+    private bool ShowVirtualSensorModal = false;
+    private string VirtualSensorName = string.Empty;
+    private string VirtualSensorA = string.Empty;
+    private string VirtualSensorB = string.Empty;
+    private string VirtualSensorOperation = "+";
+    private List<VirtualSensor> VirtualSensors = new();
 
     // Mapping of Portuguese month abbreviations to numbers
     private static readonly Dictionary<string, int> MonthMap = new(StringComparer.OrdinalIgnoreCase)
@@ -347,14 +543,48 @@
         LogData.Clear();
         AvailableSensors.Clear();
         SelectedSensors.Clear();
+        VirtualSensors.Clear(); // Clear virtual sensors when loading new file
 
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length < 2) return;
 
-        // Headers
-        var headers = lines[0].Split(',');
-        // Clean spaces from headers
-        for (int i = 0; i < headers.Length; i++) headers[i] = headers[i].Trim();
+        // Parse headers using proper CSV parsing
+        var headers = ParseCsvLine(lines[0]);
+        // Clean spaces from headers and remove quotes
+        for (int i = 0; i < headers.Length; i++) 
+        {
+            headers[i] = headers[i].Trim().Trim('"');
+        }
+
+        // Detect which column contains the time by checking the first data line
+        int timeColumnIndex = -1;
+        if (lines.Length > 1)
+        {
+            var firstDataLine = ParseCsvLine(lines[1]);
+            
+            // Clean the first two columns
+            for (int i = 0; i < Math.Min(2, firstDataLine.Length); i++)
+            {
+                firstDataLine[i] = firstDataLine[i].Trim().Trim('"');
+            }
+            
+            // Check column 0 for simple time format (HH:mm:ss.fff)
+            if (firstDataLine.Length > 0 && Regex.IsMatch(firstDataLine[0].Trim(), @"^\d{1,2}:\d{1,2}:\d{1,2}"))
+            {
+                timeColumnIndex = 0;
+            }
+            // Check column 1 for Portuguese date format
+            else if (firstDataLine.Length > 1 && (firstDataLine[1].Contains("-") || Regex.IsMatch(firstDataLine[1].Trim(), @"\d{1,2}:\d{1,2}:\d{1,2}")))
+            {
+                timeColumnIndex = 1;
+            }
+        }
+
+        if (timeColumnIndex == -1)
+        {
+            // Default to column 1 if we can't detect
+            timeColumnIndex = 1;
+        }
 
         // Identify numeric columns (Sensors)
         // Ignore time and lat/lon columns in the list of "plottable" sensors
@@ -372,19 +602,33 @@
         // Parse lines
         for (int i = 1; i < lines.Length; i++)
         {
-            var cols = lines[i].Split(',');
+            var cols = ParseCsvLine(lines[i]);
             if (cols.Length != headers.Length) continue;
+
+            // Clean quotes from values
+            for (int j = 0; j < cols.Length; j++)
+            {
+                cols[j] = cols[j].Trim().Trim('"');
+            }
 
             var point = new LogPoint();
             point.RawData = new Dictionary<string, double>();
 
-            // Parse Time (Device Time) - Column 1
-            var timeStr = cols[1].Trim();
-            point.DeviceTime = ParseDeviceTime(timeStr);
+            // Parse Time using detected column index
+            if (timeColumnIndex >= 0 && timeColumnIndex < cols.Length)
+            {
+                var timeStr = cols[timeColumnIndex].Trim();
+                point.DeviceTime = ParseDeviceTime(timeStr);
+            }
 
-            // Parse Lat/Lon (Columns 2 and 3 usually, but we go by name)
-            point.Longitude = ParseDouble(cols[Array.IndexOf(headers, "Longitude")]);
-            point.Latitude = ParseDouble(cols[Array.IndexOf(headers, "Latitude")]);
+            // Parse Lat/Lon (Columns by name)
+            var longitudeIndex = Array.IndexOf(headers, "Longitude");
+            var latitudeIndex = Array.IndexOf(headers, "Latitude");
+            
+            if (longitudeIndex >= 0 && longitudeIndex < cols.Length)
+                point.Longitude = ParseDouble(cols[longitudeIndex]);
+            if (latitudeIndex >= 0 && latitudeIndex < cols.Length)
+                point.Latitude = ParseDouble(cols[latitudeIndex]);
 
             // Parse Sensors
             for (int j = 0; j < headers.Length; j++)
@@ -403,10 +647,80 @@
         UpdateVisualization();
     }
 
+    private string[] ParseCsvLine(string line)
+    {
+        var result = new List<string>();
+        var currentField = new System.Text.StringBuilder();
+        bool insideQuotes = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+
+            if (c == '"')
+            {
+                // Handle escaped quotes (double quotes "")
+                if (insideQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    currentField.Append('"');
+                    i++; // Skip the next quote
+                }
+                else
+                {
+                    insideQuotes = !insideQuotes;
+                }
+            }
+            else if (c == ',' && !insideQuotes)
+            {
+                // End of field
+                result.Add(currentField.ToString());
+                currentField.Clear();
+            }
+            else
+            {
+                currentField.Append(c);
+            }
+        }
+
+        // Add the last field
+        result.Add(currentField.ToString());
+
+        return result.ToArray();
+    }
+
     private DateTime ParseDeviceTime(string timeStr)
     {
         if (string.IsNullOrWhiteSpace(timeStr))
             return DateTime.MinValue;
+
+        // Try to parse simple time format first: HH:mm:ss.fff (e.g., "14:57:10.598")
+        // This format has no date, so we'll use today's date as base
+        var simpleTimeMatch = Regex.Match(timeStr.Trim(), @"^(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?$");
+        if (simpleTimeMatch.Success)
+        {
+            try
+            {
+                int hour = int.Parse(simpleTimeMatch.Groups[1].Value);
+                int minute = int.Parse(simpleTimeMatch.Groups[2].Value);
+                int second = int.Parse(simpleTimeMatch.Groups[3].Value);
+                int millisecond = 0;
+
+                if (simpleTimeMatch.Groups[4].Success)
+                {
+                    string msStr = simpleTimeMatch.Groups[4].Value;
+                    if (msStr.Length > 3) msStr = msStr.Substring(0, 3);
+                    millisecond = int.Parse(msStr.PadRight(3, '0'));
+                }
+
+                // Use today's date with the parsed time
+                var today = DateTime.Today;
+                return new DateTime(today.Year, today.Month, today.Day, hour, minute, second, millisecond);
+            }
+            catch
+            {
+                // If parsing fails, continue to try other formats
+            }
+        }
 
         // Expected format: "30-dez-2025 16:15:09.236" or "27-dez.-2025 20:26:16.579"
         // Remove dots after month abbreviations
@@ -793,6 +1107,100 @@
         }
     }
 
+    private void OpenVirtualSensorModal()
+    {
+        // Reset form fields
+        VirtualSensorName = string.Empty;
+        VirtualSensorA = string.Empty;
+        VirtualSensorB = string.Empty;
+        VirtualSensorOperation = "+";
+        ShowVirtualSensorModal = true;
+    }
+
+    private void CloseVirtualSensorModal()
+    {
+        ShowVirtualSensorModal = false;
+    }
+
+    private async Task CreateVirtualSensor()
+    {
+        // Validation
+        if (string.IsNullOrWhiteSpace(VirtualSensorName))
+        {
+            await JS.InvokeVoidAsync("alert", "Please enter a name for the virtual sensor.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(VirtualSensorA) || string.IsNullOrWhiteSpace(VirtualSensorB))
+        {
+            await JS.InvokeVoidAsync("alert", "Please select both sensors.");
+            return;
+        }
+
+        if (VirtualSensorA == VirtualSensorB)
+        {
+            await JS.InvokeVoidAsync("alert", "Please select two different sensors.");
+            return;
+        }
+
+        // Check if virtual sensor name already exists
+        if (AvailableSensors.Contains(VirtualSensorName) || VirtualSensors.Any(vs => vs.Name == VirtualSensorName))
+        {
+            await JS.InvokeVoidAsync("alert", "A sensor with this name already exists. Please choose a different name.");
+            return;
+        }
+
+        // Create the virtual sensor
+        var virtualSensor = new VirtualSensor
+        {
+            Name = VirtualSensorName,
+            SensorA = VirtualSensorA,
+            SensorB = VirtualSensorB,
+            Operation = VirtualSensorOperation,
+            IsVirtual = true
+        };
+
+        VirtualSensors.Add(virtualSensor);
+
+        // Calculate values for all log points
+        CalculateVirtualSensorValues(virtualSensor);
+
+        // Add to available sensors list
+        AvailableSensors.Add(VirtualSensorName);
+
+        // Automatically select the new virtual sensor
+        SelectedSensors.Add(VirtualSensorName);
+
+        // Close modal
+        CloseVirtualSensorModal();
+
+        // Update chart
+        UpdateChartData();
+        StateHasChanged();
+
+        await JS.InvokeVoidAsync("alert", $"Virtual sensor '{VirtualSensorName}' created successfully!");
+    }
+
+    private void CalculateVirtualSensorValues(VirtualSensor virtualSensor)
+    {
+        foreach (var point in LogData)
+        {
+            double valueA = point.RawData.ContainsKey(virtualSensor.SensorA) ? point.RawData[virtualSensor.SensorA] : 0;
+            double valueB = point.RawData.ContainsKey(virtualSensor.SensorB) ? point.RawData[virtualSensor.SensorB] : 0;
+
+            double result = virtualSensor.Operation switch
+            {
+                "+" => valueA + valueB,
+                "-" => valueA - valueB,
+                "*" => valueA * valueB,
+                "/" => valueB != 0 ? valueA / valueB : 0,
+                _ => 0
+            };
+
+            point.RawData[virtualSensor.Name] = result;
+        }
+    }
+
     // Helper class for JSON serialization
     public class SensorConfiguration
     {
@@ -803,5 +1211,14 @@
     public class LogDataExport
     {
         public List<LogPoint> Data { get; set; } = new();
+    }
+
+    public class VirtualSensor
+    {
+        public string Name { get; set; } = string.Empty;
+        public string SensorA { get; set; } = string.Empty;
+        public string SensorB { get; set; } = string.Empty;
+        public string Operation { get; set; } = "+";
+        public bool IsVirtual { get; set; } = true;
     }
 }
