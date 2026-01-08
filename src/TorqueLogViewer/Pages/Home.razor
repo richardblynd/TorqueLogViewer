@@ -1,5 +1,6 @@
 ﻿@page "/"
 @using System.Globalization
+@using System.Text
 @using System.Text.RegularExpressions
 @inject IJSRuntime JS
 
@@ -612,12 +613,27 @@
         var file = e.File;
         if (file == null) return;
 
-        // Size limit (e.g., 10MB)
-        using var stream = file.OpenReadStream(10 * 1024 * 1024);
-        using var reader = new StreamReader(stream);
+        // Show loading indicator
+        await JS.InvokeVoidAsync("torqueApp.showLoading", true);
 
-        var content = await reader.ReadToEndAsync();
-        ParseCSV(content);
+        try
+        {
+            // Size limit increased to 50MB for larger files
+            using var stream = file.OpenReadStream(50 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+
+            var content = await reader.ReadToEndAsync();
+            
+            // Parse asynchronously to not block UI
+            await Task.Run(() => ParseCSV(content));
+            
+            // Update UI
+            StateHasChanged();
+        }
+        finally
+        {
+            await JS.InvokeVoidAsync("torqueApp.showLoading", false);
+        }
     }
 
     private void ParseCSV(string csvContent)
@@ -625,38 +641,34 @@
         LogData.Clear();
         AvailableSensors.Clear();
         SelectedSensors.Clear();
-        VirtualSensors.Clear(); // Clear virtual sensors when loading new file
+        VirtualSensors.Clear();
         TotalPointsBeforeSampling = 0;
 
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length < 2) return;
 
-        // Parse headers using proper CSV parsing
-        var headers = ParseCsvLine(lines[0]);
-        // Clean spaces from headers and remove quotes
+        // Parse headers - optimized
+        var headers = ParseCsvLineOptimized(lines[0]);
         for (int i = 0; i < headers.Length; i++) 
         {
             headers[i] = headers[i].Trim().Trim('"');
         }
 
-        // Detect which column contains the time by checking the first data line
+        // Detect time column
         int timeColumnIndex = -1;
         if (lines.Length > 1)
         {
-            var firstDataLine = ParseCsvLine(lines[1]);
+            var firstDataLine = ParseCsvLineOptimized(lines[1]);
             
-            // Clean the first two columns
             for (int i = 0; i < Math.Min(2, firstDataLine.Length); i++)
             {
                 firstDataLine[i] = firstDataLine[i].Trim().Trim('"');
             }
             
-            // Check column 0 for simple time format (HH:mm:ss.fff)
             if (firstDataLine.Length > 0 && Regex.IsMatch(firstDataLine[0].Trim(), @"^\d{1,2}:\d{1,2}:\d{1,2}"))
             {
                 timeColumnIndex = 0;
             }
-            // Check column 1 for Portuguese date format
             else if (firstDataLine.Length > 1 && (firstDataLine[1].Contains("-") || Regex.IsMatch(firstDataLine[1].Trim(), @"\d{1,2}:\d{1,2}:\d{1,2}")))
             {
                 timeColumnIndex = 1;
@@ -665,61 +677,72 @@
 
         if (timeColumnIndex == -1)
         {
-            // Default to column 1 if we can't detect
             timeColumnIndex = 1;
         }
 
-        // Identify numeric columns (Sensors)
-        // Ignore time and lat/lon columns in the list of "plottable" sensors
-        var ignoreCols = new[] { "GPS Time", "Device Time", "Longitude", "Latitude" };
+        // Pre-compute sensor indices for faster access
+        var ignoreCols = new HashSet<string> { "GPS Time", "Device Time", "Longitude", "Latitude" };
+        var sensorIndices = new List<(int index, string name)>();
 
-        foreach (var h in headers)
+        for (int i = 0; i < headers.Length; i++)
         {
-            if (!ignoreCols.Contains(h)) AvailableSensors.Add(h);
+            if (!ignoreCols.Contains(headers[i]))
+            {
+                AvailableSensors.Add(headers[i]);
+                sensorIndices.Add((i, headers[i]));
+            }
         }
 
-        // No default sensors selected - user must choose which sensors to display
+        // Pre-calculate column indices
+        int longitudeIndex = Array.IndexOf(headers, "Longitude");
+        int latitudeIndex = Array.IndexOf(headers, "Latitude");
 
-        // Parse lines into temporary list
-        var allPoints = new List<LogPoint>();
+        // Pre-allocate list with estimated capacity
+        var allPoints = new List<LogPoint>(lines.Length - 1);
 
+        // Parse data points with optimized loop
         for (int i = 1; i < lines.Length; i++)
         {
-            var cols = ParseCsvLine(lines[i]);
+            var cols = ParseCsvLineOptimized(lines[i]);
             if (cols.Length != headers.Length) continue;
 
-            // Clean quotes from values
+            // Clean quotes only where needed
             for (int j = 0; j < cols.Length; j++)
             {
-                cols[j] = cols[j].Trim().Trim('"');
+                var span = cols[j].AsSpan().Trim();
+                if (span.Length > 0 && span[0] == '"')
+                {
+                    cols[j] = span.Trim('"').ToString();
+                }
+                else if (span.Length != cols[j].Length)
+                {
+                    cols[j] = span.ToString();
+                }
             }
 
-            var point = new LogPoint();
-            point.RawData = new Dictionary<string, double>();
+            var point = new LogPoint
+            {
+                RawData = new Dictionary<string, double>(sensorIndices.Count)
+            };
 
-            // Parse Time using detected column index
+            // Parse Time
             if (timeColumnIndex >= 0 && timeColumnIndex < cols.Length)
             {
-                var timeStr = cols[timeColumnIndex].Trim();
-                point.DeviceTime = ParseDeviceTime(timeStr);
+                point.DeviceTime = ParseDeviceTimeOptimized(cols[timeColumnIndex]);
             }
 
-            // Parse Lat/Lon (Columns by name)
-            var longitudeIndex = Array.IndexOf(headers, "Longitude");
-            var latitudeIndex = Array.IndexOf(headers, "Latitude");
-            
+            // Parse Lat/Lon
             if (longitudeIndex >= 0 && longitudeIndex < cols.Length)
-                point.Longitude = ParseDouble(cols[longitudeIndex]);
+                point.Longitude = ParseDoubleOptimized(cols[longitudeIndex]);
             if (latitudeIndex >= 0 && latitudeIndex < cols.Length)
-                point.Latitude = ParseDouble(cols[latitudeIndex]);
+                point.Latitude = ParseDoubleOptimized(cols[latitudeIndex]);
 
-            // Parse Sensors
-            for (int j = 0; j < headers.Length; j++)
+            // Parse Sensors using pre-computed indices
+            foreach (var (index, name) in sensorIndices)
             {
-                if (AvailableSensors.Contains(headers[j]))
+                if (index < cols.Length)
                 {
-                    double val = ParseDouble(cols[j]);
-                    point.RawData[headers[j]] = val;
+                    point.RawData[name] = ParseDoubleOptimized(cols[index]);
                 }
             }
 
@@ -728,75 +751,24 @@
 
         TotalPointsBeforeSampling = allPoints.Count;
 
-        // Apply sampling if configured
+        // Apply sampling
         LogData = ApplySampling(allPoints);
 
         IsDataLoaded = true;
         UpdateVisualization();
     }
 
-    private List<LogPoint> ApplySampling(List<LogPoint> allPoints)
+    private string[] ParseCsvLineOptimized(string line)
     {
-        if (allPoints.Count == 0) return allPoints;
-
-        switch (SamplingMode)
+        // Fast path for lines without quotes
+        if (line.IndexOf('"') < 0)
         {
-            case "Time":
-                return ApplyTimeSampling(allPoints, SamplingTimeMs);
-            
-            case "Index":
-                return ApplyIndexSampling(allPoints, SamplingEveryN);
-            
-            case "None":
-            default:
-                return allPoints;
-        }
-    }
-
-    private List<LogPoint> ApplyTimeSampling(List<LogPoint> allPoints, int intervalMs)
-    {
-        if (allPoints.Count == 0) return allPoints;
-
-        var sampledPoints = new List<LogPoint>();
-        DateTime? lastSampledTime = null;
-
-        foreach (var point in allPoints)
-        {
-            if (lastSampledTime == null || 
-                (point.DeviceTime - lastSampledTime.Value).TotalMilliseconds >= intervalMs)
-            {
-                sampledPoints.Add(point);
-                lastSampledTime = point.DeviceTime;
-            }
+            return line.Split(',');
         }
 
-        return sampledPoints;
-    }
-
-    private List<LogPoint> ApplyIndexSampling(List<LogPoint> allPoints, int everyN)
-    {
-        if (allPoints.Count == 0 || everyN <= 0) return allPoints;
-
-        var sampledPoints = new List<LogPoint>();
-        
-        for (int i = 0; i < allPoints.Count; i += everyN)
-        {
-            sampledPoints.Add(allPoints[i]);
-        }
-
-        // Always include the last point if not already included
-        if (sampledPoints.Count > 0 && sampledPoints[sampledPoints.Count - 1] != allPoints[allPoints.Count - 1])
-        {
-            sampledPoints.Add(allPoints[allPoints.Count - 1]);
-        }
-
-        return sampledPoints;
-    }
-
-    private string[] ParseCsvLine(string line)
-    {
-        var result = new List<string>();
-        var currentField = new System.Text.StringBuilder();
+        // Optimized parsing for quoted fields
+        var result = new List<string>(50);
+        var currentField = new StringBuilder(32);
         bool insideQuotes = false;
 
         for (int i = 0; i < line.Length; i++)
@@ -805,11 +777,10 @@
 
             if (c == '"')
             {
-                // Handle escaped quotes (double quotes "")
                 if (insideQuotes && i + 1 < line.Length && line[i + 1] == '"')
                 {
                     currentField.Append('"');
-                    i++; // Skip the next quote
+                    i++;
                 }
                 else
                 {
@@ -818,7 +789,6 @@
             }
             else if (c == ',' && !insideQuotes)
             {
-                // End of field
                 result.Add(currentField.ToString());
                 currentField.Clear();
             }
@@ -828,98 +798,86 @@
             }
         }
 
-        // Add the last field
         result.Add(currentField.ToString());
-
         return result.ToArray();
     }
 
-    private DateTime ParseDeviceTime(string timeStr)
+    private DateTime ParseDeviceTimeOptimized(string timeStr)
     {
         if (string.IsNullOrWhiteSpace(timeStr))
             return DateTime.MinValue;
 
-        // Try to parse simple time format first: HH:mm:ss.fff (e.g., "14:57:10.598")
-        // This format has no date, so we'll use today's date as base
-        var simpleTimeMatch = Regex.Match(timeStr.Trim(), @"^(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?$");
-        if (simpleTimeMatch.Success)
+        var span = timeStr.AsSpan().Trim();
+
+        // Fast path: Simple time format HH:mm:ss.fff
+        if (span.Length >= 8 && span.Length <= 12 && span.IndexOf('-') < 0)
         {
-            try
-            {
-                int hour = int.Parse(simpleTimeMatch.Groups[1].Value);
-                int minute = int.Parse(simpleTimeMatch.Groups[2].Value);
-                int second = int.Parse(simpleTimeMatch.Groups[3].Value);
-                int millisecond = 0;
-
-                if (simpleTimeMatch.Groups[4].Success)
-                {
-                    string msStr = simpleTimeMatch.Groups[4].Value;
-                    if (msStr.Length > 3) msStr = msStr.Substring(0, 3);
-                    millisecond = int.Parse(msStr.PadRight(3, '0'));
-                }
-
-                // Use today's date with the parsed time
-                var today = DateTime.Today;
-                return new DateTime(today.Year, today.Month, today.Day, hour, minute, second, millisecond);
-            }
-            catch
-            {
-                // If parsing fails, continue to try other formats
-            }
+            if (TryParseSimpleTime(span, out DateTime simpleTime))
+                return simpleTime;
         }
 
-        // Expected format: "30-dez-2025 16:15:09.236" or "27-dez.-2025 20:26:16.579"
-        // Remove dots after month abbreviations
-        timeStr = Regex.Replace(timeStr, @"([a-z]{3})\.", "$1", RegexOptions.IgnoreCase);
-
-        // Try parse with PT-BR culture first
-        var culturePt = new CultureInfo("pt-BR");
-        if (DateTime.TryParse(timeStr, culturePt, DateTimeStyles.None, out DateTime dt))
-            return dt;
-
-        // Manual parse using regex
-        // Pattern: DD-MMM-YYYY HH:mm:ss.fff
-        var match = Regex.Match(timeStr, @"(\d{1,2})-([a-z]{3})-(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?", RegexOptions.IgnoreCase);
-        
-        if (match.Success)
-        {
-            try
-            {
-                int day = int.Parse(match.Groups[1].Value);
-                string monthStr = match.Groups[2].Value.ToLower();
-                int year = int.Parse(match.Groups[3].Value);
-                int hour = int.Parse(match.Groups[4].Value);
-                int minute = int.Parse(match.Groups[5].Value);
-                int second = int.Parse(match.Groups[6].Value);
-                int millisecond = 0;
-
-                if (match.Groups[7].Success)
-                {
-                    // Parse milliseconds (may have more or less than 3 digits)
-                    string msStr = match.Groups[7].Value;
-                    if (msStr.Length > 3) msStr = msStr.Substring(0, 3);
-                    millisecond = int.Parse(msStr.PadRight(3, '0'));
-                }
-
-                if (MonthMap.TryGetValue(monthStr, out int month))
-                {
-                    return new DateTime(year, month, day, hour, minute, second, millisecond);
-                }
-            }
-            catch
-            {
-                // If it fails, return MinValue
-            }
-        }
-
-        return DateTime.MinValue;
+        // Fallback to original parsing
+        return ParseDeviceTime(timeStr);
     }
 
-    private double ParseDouble(string val)
+    private bool TryParseSimpleTime(ReadOnlySpan<char> span, out DateTime result)
     {
-        if (string.IsNullOrWhiteSpace(val) || val.Trim() == "-") return 0;
-        // Try invariant culture (dot)
-        if (double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out double res)) return res;
+        result = DateTime.MinValue;
+
+        int firstColon = span.IndexOf(':');
+        if (firstColon < 0) return false;
+
+        int secondColon = span.Slice(firstColon + 1).IndexOf(':');
+        if (secondColon < 0) return false;
+        secondColon += firstColon + 1;
+
+        if (!int.TryParse(span.Slice(0, firstColon), out int hour)) return false;
+        if (!int.TryParse(span.Slice(firstColon + 1, secondColon - firstColon - 1), out int minute)) return false;
+
+        int dotIndex = span.Slice(secondColon).IndexOf('.');
+        int secondEnd = dotIndex >= 0 ? secondColon + dotIndex : span.Length;
+        
+        if (!int.TryParse(span.Slice(secondColon + 1, secondEnd - secondColon - 1), out int second)) return false;
+
+        int millisecond = 0;
+        if (dotIndex >= 0 && secondEnd + 1 < span.Length)
+        {
+            var msSpan = span.Slice(secondEnd + 1);
+            if (msSpan.Length > 3) msSpan = msSpan.Slice(0, 3);
+            
+            if (int.TryParse(msSpan, out int ms))
+            {
+                millisecond = msSpan.Length switch
+                {
+                    1 => ms * 100,
+                    2 => ms * 10,
+                    _ => ms
+                };
+            }
+        }
+
+        try
+        {
+            var today = DateTime.Today;
+            result = new DateTime(today.Year, today.Month, today.Day, hour, minute, second, millisecond);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private double ParseDoubleOptimized(string val)
+    {
+        if (string.IsNullOrEmpty(val)) return 0;
+        
+        var span = val.AsSpan().Trim();
+        if (span.IsEmpty || (span.Length == 1 && span[0] == '-')) return 0;
+
+        if (double.TryParse(span, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out double result))
+            return result;
+            
         return 0;
     }
 
@@ -942,49 +900,82 @@
 
     private void UpdateChartData()
     {
-        // Prepare Labels (X Axis)
-        string[] labels;
+        if (LogData.Count == 0) return;
+
+        // Pre-allocate arrays
+        string[] labels = new string[LogData.Count];
+        
         if (XAxisMode == "DeviceTime")
-            labels = LogData.Select(x => x.DeviceTime.ToString("HH:mm:ss")).ToArray();
+        {
+            for (int i = 0; i < LogData.Count; i++)
+            {
+                labels[i] = LogData[i].DeviceTime.ToString("HH:mm:ss");
+            }
+        }
         else
-            labels = LogData.Select((x, i) => i.ToString()).ToArray();
+        {
+            for (int i = 0; i < LogData.Count; i++)
+            {
+                labels[i] = i.ToString();
+            }
+        }
 
-        // Prepare Datasets
-        var datasets = new List<object>();
-
+        var datasets = new List<object>(SelectedSensors.Count);
         int colorIdx = 0;
 
         foreach (var sensor in SelectedSensors)
         {
-            // Assign color if not already assigned
             if (!SensorColorMapping.ContainsKey(sensor))
             {
                 SensorColorMapping[sensor] = ChartColors[colorIdx % ChartColors.Length];
             }
 
-            // Get raw data
-            var rawData = LogData.Select(p => p.RawData.ContainsKey(sensor) ? p.RawData[sensor] : 0).ToArray();
+            // Pre-allocate array
+            var rawData = new double[LogData.Count];
+            
+            for (int i = 0; i < LogData.Count; i++)
+            {
+                rawData[i] = LogData[i].RawData.TryGetValue(sensor, out double value) ? value : 0;
+            }
 
-            // Normalization Logic (Min-Max Scaling)
-            double min = rawData.Min();
-            double max = rawData.Max();
+            // Optimized min/max
+            double min = double.MaxValue;
+            double max = double.MinValue;
+            
+            foreach (var v in rawData)
+            {
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+
             double range = max - min;
+            var normalizedData = new double[rawData.Length];
 
-            // If range is 0 (constant value), set to 0.5 (middle of chart), otherwise normalize between 0 and 1
-            var normalizedData = rawData.Select(v => range == 0 ? 0.5 : (v - min) / range).ToArray();
+            if (range == 0)
+            {
+                Array.Fill(normalizedData, 0.5);
+            }
+            else
+            {
+                for (int i = 0; i < rawData.Length; i++)
+                {
+                    normalizedData[i] = (rawData[i] - min) / range;
+                }
+            }
 
             datasets.Add(new
             {
                 label = sensor,
-                data = normalizedData,       // Chart.js draws this (0.0 to 1.0)
-                originalData = rawData,      // REAL data to show in Tooltip
+                data = normalizedData,
+                originalData = rawData,
                 borderColor = SensorColorMapping[sensor],
                 backgroundColor = "transparent",
                 borderWidth = 2,
                 pointRadius = 0,
                 pointHoverRadius = 4,
-                tension = 0.1 // Smooths the line slightly
+                tension = 0.1
             });
+            
             colorIdx++;
         }
 
@@ -1365,6 +1356,133 @@
 
             point.RawData[virtualSensor.Name] = result;
         }
+    }
+
+    private List<LogPoint> ApplySampling(List<LogPoint> allPoints)
+    {
+        if (allPoints.Count == 0) return allPoints;
+
+        switch (SamplingMode)
+        {
+            case "Time":
+                return ApplyTimeSampling(allPoints, SamplingTimeMs);
+            
+            case "Index":
+                return ApplyIndexSampling(allPoints, SamplingEveryN);
+            
+            case "None":
+            default:
+                return allPoints;
+        }
+    }
+
+    private List<LogPoint> ApplyTimeSampling(List<LogPoint> allPoints, int intervalMs)
+    {
+        if (allPoints.Count == 0) return allPoints;
+
+        var sampledPoints = new List<LogPoint>();
+        DateTime? lastSampledTime = null;
+
+        foreach (var point in allPoints)
+        {
+            if (lastSampledTime == null || 
+                (point.DeviceTime - lastSampledTime.Value).TotalMilliseconds >= intervalMs)
+            {
+                sampledPoints.Add(point);
+                lastSampledTime = point.DeviceTime;
+            }
+        }
+
+        return sampledPoints;
+    }
+
+    private List<LogPoint> ApplyIndexSampling(List<LogPoint> allPoints, int everyN)
+    {
+        if (allPoints.Count == 0 || everyN <= 0) return allPoints;
+
+        var sampledPoints = new List<LogPoint>();
+        
+        for (int i = 0; i < allPoints.Count; i += everyN)
+        {
+            sampledPoints.Add(allPoints[i]);
+        }
+
+        if (sampledPoints.Count > 0 && sampledPoints[sampledPoints.Count - 1] != allPoints[allPoints.Count - 1])
+        {
+            sampledPoints.Add(allPoints[allPoints.Count - 1]);
+        }
+
+        return sampledPoints;
+    }
+
+    private DateTime ParseDeviceTime(string timeStr)
+    {
+        if (string.IsNullOrWhiteSpace(timeStr))
+            return DateTime.MinValue;
+
+        var simpleTimeMatch = Regex.Match(timeStr.Trim(), @"^(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?$");
+        if (simpleTimeMatch.Success)
+        {
+            try
+            {
+                int hour = int.Parse(simpleTimeMatch.Groups[1].Value);
+                int minute = int.Parse(simpleTimeMatch.Groups[2].Value);
+                int second = int.Parse(simpleTimeMatch.Groups[3].Value);
+                int millisecond = 0;
+
+                if (simpleTimeMatch.Groups[4].Success)
+                {
+                    string msStr = simpleTimeMatch.Groups[4].Value;
+                    if (msStr.Length > 3) msStr = msStr.Substring(0, 3);
+                    millisecond = int.Parse(msStr.PadRight(3, '0'));
+                }
+
+                var today = DateTime.Today;
+                return new DateTime(today.Year, today.Month, today.Day, hour, minute, second, millisecond);
+            }
+            catch
+            {
+            }
+        }
+
+        timeStr = Regex.Replace(timeStr, @"([a-z]{3})\.", "$1", RegexOptions.IgnoreCase);
+
+        var culturePt = new CultureInfo("pt-BR");
+        if (DateTime.TryParse(timeStr, culturePt, DateTimeStyles.None, out DateTime dt))
+            return dt;
+
+        var match = Regex.Match(timeStr, @"(\d{1,2})-([a-z]{3})-(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?", RegexOptions.IgnoreCase);
+        
+        if (match.Success)
+        {
+            try
+            {
+                int day = int.Parse(match.Groups[1].Value);
+                string monthStr = match.Groups[2].Value.ToLower();
+                int year = int.Parse(match.Groups[3].Value);
+                int hour = int.Parse(match.Groups[4].Value);
+                int minute = int.Parse(match.Groups[5].Value);
+                int second = int.Parse(match.Groups[6].Value);
+                int millisecond = 0;
+
+                if (match.Groups[7].Success)
+                {
+                    string msStr = match.Groups[7].Value;
+                    if (msStr.Length > 3) msStr = msStr.Substring(0, 3);
+                    millisecond = int.Parse(msStr.PadRight(3, '0'));
+                }
+
+                if (MonthMap.TryGetValue(monthStr, out int month))
+                {
+                    return new DateTime(year, month, day, hour, minute, second, millisecond);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        return DateTime.MinValue;
     }
 
     // Helper class for JSON serialization

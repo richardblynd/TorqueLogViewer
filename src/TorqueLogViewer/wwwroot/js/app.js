@@ -475,5 +475,57 @@
         chart.options.scales.x.min = newMin;
         chart.options.scales.x.max = newMax;
         chart.update('none');
-    }
+    },
+
+    // Loading indicator
+    showLoading: function(show) {
+        let loader = document.getElementById('loadingOverlay');
+        
+        if (show) {
+            if (!loader) {
+                loader = document.createElement('div');
+                loader.id = 'loadingOverlay';
+                loader.innerHTML = `
+                    <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                                background: rgba(0,0,0,0.8); display: flex; justify-content: center; 
+                                align-items: center; z-index: 9999;">
+                        <div style="background: white; padding: 40px; border-radius: 10px; text-align: center; min-width: 300px;">
+                            <div style="border: 8px solid #f3f3f3; border-top: 8px solid #4CAF50; 
+                                        border-radius: 50%; width: 60px; height: 60px; 
+                                        animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+                            <div id="loadingTitle" style="font-size: 18px; color: #333; margin-bottom: 10px;">Loading file...</div>
+                            <div id="loadingSubtext" style="font-size: 14px; color: #666; margin-bottom: 15px;">Processing data</div>
+                            <div id="loadingProgress" style="width: 100%; background: #e0e0e0; border-radius: 5px; height: 8px; overflow: hidden; margin-top: 10px;">
+                                <div id="loadingProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #4CAF50, #45a049); transition: width 0.3s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <style>
+                        @keyframes spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+                    </style>
+                `;
+                document.body.appendChild(loader);
+            }
+            loader.style.display = 'block';
+        } else {
+            if (loader) {
+                loader.style.display = 'none';
+            }
+        }
+    },
+
+    updateLoadingProgress: function(percentage, text) {
+        const progressBar = document.getElementById('loadingProgressBar');
+        const subtext = document.getElementById('loadingSubtext');
+        
+        if (progressBar) {
+            progressBar.style.width = percentage + '%';
+        }
+        if (subtext && text) {
+            subtext.textContent = text;
+        }
+    },
 };
