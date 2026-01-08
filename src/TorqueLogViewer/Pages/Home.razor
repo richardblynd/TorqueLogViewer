@@ -562,7 +562,7 @@
 
     // Sampling configuration
     private string SamplingMode = "None"; // None, Time, Index
-    private int SamplingTimeMs = 100; // Sample every 100ms by default
+    private int SamplingTimeMs = 1000; // Sample every 100ms by default
     private int SamplingEveryN = 10; // Sample every 10 points by default
     private int TotalPointsBeforeSampling = 0;
 
@@ -610,42 +610,103 @@
 
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
+        var startTime = DateTime.Now;
+        Console.WriteLine($"[{startTime:HH:mm:ss}] === START FILE LOADING ===");
+
         var file = e.File;
         if (file == null) return;
 
         // Show loading indicator
         await JS.InvokeVoidAsync("torqueApp.showLoading", true);
+        await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 0, "Starting file load...");
 
         try
         {
+            var streamStartTime = DateTime.Now;
+            Console.WriteLine($"[{streamStartTime:HH:mm:ss}] Starting file stream read (size: {file.Size} bytes)");
+            await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 5, "Opening file stream...");
+
             // Size limit increased to 50MB for larger files
             using var stream = file.OpenReadStream(50 * 1024 * 1024);
             using var reader = new StreamReader(stream);
 
+            var readStartTime = DateTime.Now;
+            Console.WriteLine($"[{readStartTime:HH:mm:ss}] Reading file content");
+            await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 10, "Reading file content...");
+
             var content = await reader.ReadToEndAsync();
             
-            // Parse asynchronously to not block UI
-            await Task.Run(() => ParseCSV(content));
+            var readEndTime = DateTime.Now;
+            var readDuration = (readEndTime - readStartTime).TotalMilliseconds;
+            Console.WriteLine($"[{readEndTime:HH:mm:ss}] File read completed (duration: {readDuration:F2}ms, size: {content.Length} characters)");
+            await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 20, "File read complete");
             
+            var parseStartTime = DateTime.Now;
+            Console.WriteLine($"[{parseStartTime:HH:mm:ss}] Starting CSV parse");
+            await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 25, "Starting CSV parse...");
+
+            // Parse on the UI thread with progress updates
+            await ParseCSVAsync(content);
+            
+            var parseEndTime = DateTime.Now;
+            var parseDuration = (parseEndTime - parseStartTime).TotalMilliseconds;
+            Console.WriteLine($"[{parseEndTime:HH:mm:ss}] CSV parse completed (duration: {parseDuration:F2}ms)");
+            await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 95, "Parse complete");
+            
+            var uiStartTime = DateTime.Now;
+            Console.WriteLine($"[{uiStartTime:HH:mm:ss}] Updating UI");
+            await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 98, "Updating UI...");
+
             // Update UI
             StateHasChanged();
+            
+            var uiEndTime = DateTime.Now;
+            var uiDuration = (uiEndTime - uiStartTime).TotalMilliseconds;
+            Console.WriteLine($"[{uiEndTime:HH:mm:ss}] UI updated (duration: {uiDuration:F2}ms)");
+            await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 100, "Complete!");
+            
+            // Longer delay to show 100% before closing
+            await Task.Delay(500);
         }
         finally
         {
             await JS.InvokeVoidAsync("torqueApp.showLoading", false);
+            
+            var endTime = DateTime.Now;
+            var totalDuration = (endTime - startTime).TotalMilliseconds;
+            Console.WriteLine($"[{endTime:HH:mm:ss}] === END FILE LOADING ===");
+            Console.WriteLine($"[{endTime:HH:mm:ss}] TOTAL TIME: {totalDuration:F2}ms ({totalDuration / 1000:F2}s)");
         }
     }
 
-    private void ParseCSV(string csvContent)
+    private async Task ParseCSVAsync(string csvContent)
     {
+        var parseStartTime = DateTime.Now;
+        Console.WriteLine($"[{parseStartTime:HH:mm:ss}] ParseCSV: Starting");
+
         LogData.Clear();
         AvailableSensors.Clear();
         SelectedSensors.Clear();
         VirtualSensors.Clear();
         TotalPointsBeforeSampling = 0;
 
+        var splitStartTime = DateTime.Now;
+        Console.WriteLine($"[{splitStartTime:HH:mm:ss}] ParseCSV: Splitting lines");
+        await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 30, "Splitting lines...");
+        await Task.Yield(); // Allow UI to update
+
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        
+        var splitEndTime = DateTime.Now;
+        var splitDuration = (splitEndTime - splitStartTime).TotalMilliseconds;
+        Console.WriteLine($"[{splitEndTime:HH:mm:ss}] ParseCSV: Lines split (duration: {splitDuration:F2}ms, total: {lines.Length} lines)");
+
         if (lines.Length < 2) return;
+
+        var headerStartTime = DateTime.Now;
+        Console.WriteLine($"[{headerStartTime:HH:mm:ss}] ParseCSV: Parsing headers");
+        await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 35, "Parsing headers...");
+        await Task.Yield();
 
         // Parse headers - optimized
         var headers = ParseCsvLineOptimized(lines[0]);
@@ -653,6 +714,15 @@
         {
             headers[i] = headers[i].Trim().Trim('"');
         }
+
+        var headerEndTime = DateTime.Now;
+        var headerDuration = (headerEndTime - headerStartTime).TotalMilliseconds;
+        Console.WriteLine($"[{headerEndTime:HH:mm:ss}] ParseCSV: Headers parsed (duration: {headerDuration:F2}ms, total: {headers.Length} columns)");
+
+        var timeDetectionStartTime = DateTime.Now;
+        Console.WriteLine($"[{timeDetectionStartTime:HH:mm:ss}] ParseCSV: Detecting time column");
+        await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 38, "Detecting time column...");
+        await Task.Yield();
 
         // Detect time column
         int timeColumnIndex = -1;
@@ -680,6 +750,15 @@
             timeColumnIndex = 1;
         }
 
+        var timeDetectionEndTime = DateTime.Now;
+        var timeDetectionDuration = (timeDetectionEndTime - timeDetectionStartTime).TotalMilliseconds;
+        Console.WriteLine($"[{timeDetectionEndTime:HH:mm:ss}] ParseCSV: Time column detected (duration: {timeDetectionDuration:F2}ms, index: {timeColumnIndex})");
+
+        var sensorIndexStartTime = DateTime.Now;
+        Console.WriteLine($"[{sensorIndexStartTime:HH:mm:ss}] ParseCSV: Identifying sensors");
+        await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 40, "Identifying sensors...");
+        await Task.Yield();
+
         // Pre-compute sensor indices for faster access
         var ignoreCols = new HashSet<string> { "GPS Time", "Device Time", "Longitude", "Latitude" };
         var sensorIndices = new List<(int index, string name)>();
@@ -693,6 +772,13 @@
             }
         }
 
+        var sensorIndexEndTime = DateTime.Now;
+        var sensorIndexDuration = (sensorIndexEndTime - sensorIndexStartTime).TotalMilliseconds;
+        Console.WriteLine($"[{sensorIndexEndTime:HH:mm:ss}] ParseCSV: Sensors identified (duration: {sensorIndexDuration:F2}ms, total: {AvailableSensors.Count} sensors)");
+
+        var columnIndexStartTime = DateTime.Now;
+        Console.WriteLine($"[{columnIndexStartTime:HH:mm:ss}] ParseCSV: Calculating column indices");
+
         // Pre-calculate column indices
         int longitudeIndex = Array.IndexOf(headers, "Longitude");
         int latitudeIndex = Array.IndexOf(headers, "Latitude");
@@ -700,7 +786,18 @@
         // Pre-allocate list with estimated capacity
         var allPoints = new List<LogPoint>(lines.Length - 1);
 
+        var columnIndexEndTime = DateTime.Now;
+        var columnIndexDuration = (columnIndexEndTime - columnIndexStartTime).TotalMilliseconds;
+        Console.WriteLine($"[{columnIndexEndTime:HH:mm:ss}] ParseCSV: Indices calculated (duration: {columnIndexDuration:F2}ms)");
+
+        var dataParseStartTime = DateTime.Now;
+        Console.WriteLine($"[{dataParseStartTime:HH:mm:ss}] ParseCSV: Parsing data points");
+        await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 45, $"Parsing data points (0/{lines.Length - 1})...");
+        await Task.Yield();
+
         // Parse data points with optimized loop
+        int progressUpdateInterval = Math.Max((lines.Length - 1) / 20, 100); // Update progress every ~5% or every 100 lines
+        
         for (int i = 1; i < lines.Length; i++)
         {
             var cols = ParseCsvLineOptimized(lines[i]);
@@ -747,15 +844,57 @@
             }
 
             allPoints.Add(point);
+            
+            // Update progress periodically
+            if (i % progressUpdateInterval == 0)
+            {
+                int progressPercentage = 45 + (int)((i / (double)(lines.Length - 1)) * 35); // 45-80%
+                int pointsParsed = i;
+                await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", progressPercentage, 
+                    $"Parsing data points ({pointsParsed:N0}/{lines.Length - 1:N0})...");
+                await Task.Yield(); // Allow UI to update
+            }
         }
 
+        var dataParseEndTime = DateTime.Now;
+        var dataParseDuration = (dataParseEndTime - dataParseStartTime).TotalMilliseconds;
+        Console.WriteLine($"[{dataParseEndTime:HH:mm:ss}] ParseCSV: Data points parsed (duration: {dataParseDuration:F2}ms, total: {allPoints.Count} points)");
+        await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 80, "Data parsing complete");
+        await Task.Yield();
+
         TotalPointsBeforeSampling = allPoints.Count;
+
+        var samplingStartTime = DateTime.Now;
+        Console.WriteLine($"[{samplingStartTime:HH:mm:ss}] ParseCSV: Applying sampling (mode: {SamplingMode})");
+        await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 82, $"Applying sampling ({SamplingMode})...");
+        await Task.Yield();
 
         // Apply sampling
         LogData = ApplySampling(allPoints);
 
+        var samplingEndTime = DateTime.Now;
+        var samplingDuration = (samplingEndTime - samplingStartTime).TotalMilliseconds;
+        Console.WriteLine($"[{samplingEndTime:HH:mm:ss}] ParseCSV: Sampling applied (duration: {samplingDuration:F2}ms, points after sampling: {LogData.Count})");
+        await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 85, "Sampling complete");
+        await Task.Yield();
+
         IsDataLoaded = true;
+        
+        var visualizationStartTime = DateTime.Now;
+        Console.WriteLine($"[{visualizationStartTime:HH:mm:ss}] ParseCSV: Updating visualization");
+        await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 88, "Updating map and chart...");
+        await Task.Yield();
+
         UpdateVisualization();
+        
+        var visualizationEndTime = DateTime.Now;
+        var visualizationDuration = (visualizationEndTime - visualizationStartTime).TotalMilliseconds;
+        Console.WriteLine($"[{visualizationEndTime:HH:mm:ss}] ParseCSV: Visualization updated (duration: {visualizationDuration:F2}ms)");
+        await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 92, "Visualization complete");
+
+        var parseEndTime = DateTime.Now;
+        var totalParseDuration = (parseEndTime - parseStartTime).TotalMilliseconds;
+        Console.WriteLine($"[{parseEndTime:HH:mm:ss}] ParseCSV: Completed (total duration: {totalParseDuration:F2}ms)");
     }
 
     private string[] ParseCsvLineOptimized(string line)
@@ -1303,7 +1442,7 @@
         // Check if virtual sensor name already exists
         if (AvailableSensors.Contains(VirtualSensorName) || VirtualSensors.Any(vs => vs.Name == VirtualSensorName))
         {
-            await JS.InvokeVoidAsync("alert", "A sensor with this name already exists. Please choose a different name.");
+            await JS.InvokeVoidAsync("alert", "A sensor with this name exists. Please choose a different name.");
             return;
         }
 

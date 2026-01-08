@@ -518,14 +518,23 @@
     },
 
     updateLoadingProgress: function(percentage, text) {
+        console.log(`[JS] updateLoadingProgress called: ${percentage}%, ${text}`);
+        
         const progressBar = document.getElementById('loadingProgressBar');
         const subtext = document.getElementById('loadingSubtext');
         
         if (progressBar) {
             progressBar.style.width = percentage + '%';
+            console.log(`[JS] Progress bar updated to ${percentage}%`);
+        } else {
+            console.error('[JS] Progress bar element not found');
         }
+        
         if (subtext && text) {
             subtext.textContent = text;
+            console.log(`[JS] Subtext updated to: ${text}`);
+        } else if (!subtext) {
+            console.error('[JS] Subtext element not found');
         }
     },
 };
