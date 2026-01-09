@@ -36,36 +36,41 @@
                 }
             </div>
 
-            <div class="sensors-container">
-                @if (SelectedSensors.Count > 0)
-                {
-                    <div class="sensor-section selected-section">
-                        <div class="section-header">
-                            <span class="section-title">Selected (@SelectedSensors.Count)</span>
-                            @if (SelectedSensors.Count > 0)
-                            {
-                                <button class="clear-all-btn" @onclick="ClearAllSelections" title="Clear all selections">
-                                    Clear All
-                                </button>
-                            }
-                        </div>
-                        <div class="sensor-list">
-                            @foreach (var sensor in GetFilteredSelectedSensors())
-                            {
-                                <div class="sensor-item selected" @key="sensor">
-                                    <label>
-                                        <input type="checkbox"
-                                               checked="@SelectedSensors.Contains(sensor)"
-                                               @onchange="@(e => OnSensorToggled(sensor, (bool)e.Value!))" />
-                                        <span class="sensor-color" style="background-color: @GetSensorColor(sensor);"></span>
-                                        <span class="sensor-name">@sensor</span>
-                                    </label>
-                                </div>
-                            }
-                        </div>
+            @if (SelectedSensors.Count > 0)
+            {
+                <div class="sensor-section selected-section">
+                    <div class="section-header">
+                        <span class="section-title">Selected (@SelectedSensors.Count)</span>
+                        @if (SelectedSensors.Count > 0)
+                        {
+                            <button class="clear-all-btn" @onclick="ClearAllSelections" title="Clear all selections">
+                                Clear All
+                            </button>
+                        }
                     </div>
-                }
+                    <div class="sensor-list">
+                        @foreach (var sensor in GetFilteredSelectedSensors())
+                        {
+                            <div class="sensor-item selected" @key="sensor">
+                                <label>
+                                    <input type="checkbox"
+                                           checked="@SelectedSensors.Contains(sensor)"
+                                           @onchange="@(e => OnSensorToggled(sensor, (bool)e.Value!))" />
+                                    <span class="sensor-color" style="background-color: @GetSensorColor(sensor);"></span>
+                                    <span class="sensor-name">@sensor</span>
+                                    <div class="sensor-stats">
+                                        <span class="sensor-stat-min" title="Minimum value"><span class="icon-min">&#9660;</span> @GetSensorMin(sensor)</span>
+                                        <span class="sensor-stat-max" title="Maximum value"><span class="icon-max">&#9650;</span> @GetSensorMax(sensor)</span>
+                                        <span class="sensor-value" title="Current value">@GetSensorValue(sensor)</span>
+                                    </div>
+                                </label>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
 
+            <div class="sensors-scrollable">
                 <div class="sensor-section available-section">
                     <div class="section-header">
                         <span class="section-title">Available (@GetFilteredAvailableSensors().Count())</span>
@@ -83,6 +88,11 @@
                                                    checked="@SelectedSensors.Contains(sensor)"
                                                    @onchange="@(e => OnSensorToggled(sensor, (bool)e.Value!))" />
                                             <span class="sensor-name">@sensor</span>
+                                            <div class="sensor-stats">
+                                                <span class="sensor-stat-min" title="Minimum value"><span class="icon-min">&#9660;</span> @GetSensorMin(sensor)</span>
+                                                <span class="sensor-stat-max" title="Maximum value"><span class="icon-max">&#9650;</span> @GetSensorMax(sensor)</span>
+                                                <span class="sensor-value" title="Current value">@GetSensorValue(sensor)</span>
+                                            </div>
                                         </label>
                                     </div>
                                 }
@@ -120,7 +130,16 @@
     [Parameter]
     public EventCallback<bool> IsExpandedChanged { get; set; }
 
+    [Parameter]
+    public object? CurrentPoint { get; set; }
+
+    [Parameter]
+    public object? AllLogData { get; set; }
+
     private string FilterText { get; set; } = string.Empty;
+
+    // Cache for min/max values
+    private Dictionary<string, (double min, double max)> _sensorMinMaxCache = new();
 
     private void ToggleSidebar()
     {
@@ -179,5 +198,92 @@
     private string GetSensorColor(string sensor)
     {
         return SensorColorMapping.ContainsKey(sensor) ? SensorColorMapping[sensor] : "#999";
+    }
+
+    private string GetSensorValue(string sensor)
+    {
+        if (CurrentPoint == null) return "-";
+
+        // Use reflection to get RawData property
+        var pointType = CurrentPoint.GetType();
+        var rawDataProperty = pointType.GetProperty("RawData");
+        
+        if (rawDataProperty == null) return "-";
+
+        var rawData = rawDataProperty.GetValue(CurrentPoint) as Dictionary<string, double>;
+        
+        if (rawData == null || !rawData.ContainsKey(sensor)) return "-";
+
+        return rawData[sensor].ToString("F2");
+    }
+
+    private string GetSensorMin(string sensor)
+    {
+        var minMax = GetSensorMinMax(sensor);
+        return minMax.min != double.MaxValue ? minMax.min.ToString("F2") : "-";
+    }
+
+    private string GetSensorMax(string sensor)
+    {
+        var minMax = GetSensorMinMax(sensor);
+        return minMax.max != double.MinValue ? minMax.max.ToString("F2") : "-";
+    }
+
+    private (double min, double max) GetSensorMinMax(string sensor)
+    {
+        // Check cache first
+        if (_sensorMinMaxCache.ContainsKey(sensor))
+        {
+            return _sensorMinMaxCache[sensor];
+        }
+
+        if (AllLogData == null) return (double.MaxValue, double.MinValue);
+
+        // Use reflection to get the list
+        var listType = AllLogData.GetType();
+        if (!listType.IsGenericType) return (double.MaxValue, double.MinValue);
+
+        var countProperty = listType.GetProperty("Count");
+        if (countProperty == null) return (double.MaxValue, double.MinValue);
+
+        int count = (int)countProperty.GetValue(AllLogData)!;
+        if (count == 0) return (double.MaxValue, double.MinValue);
+
+        var indexer = listType.GetProperty("Item");
+        if (indexer == null) return (double.MaxValue, double.MinValue);
+
+        double min = double.MaxValue;
+        double max = double.MinValue;
+
+        for (int i = 0; i < count; i++)
+        {
+            var point = indexer.GetValue(AllLogData, new object[] { i });
+            if (point == null) continue;
+
+            var rawDataProperty = point.GetType().GetProperty("RawData");
+            if (rawDataProperty == null) continue;
+
+            var rawData = rawDataProperty.GetValue(point) as Dictionary<string, double>;
+            if (rawData == null || !rawData.ContainsKey(sensor)) continue;
+
+            double value = rawData[sensor];
+            if (value < min) min = value;
+            if (value > max) max = value;
+        }
+
+        // Cache the result
+        var result = (min, max);
+        _sensorMinMaxCache[sensor] = result;
+        
+        return result;
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Clear cache when AllLogData changes
+        if (AllLogData != null)
+        {
+            _sensorMinMaxCache.Clear();
+        }
     }
 }

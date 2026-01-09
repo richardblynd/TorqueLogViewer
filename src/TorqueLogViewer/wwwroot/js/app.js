@@ -1,12 +1,11 @@
 ﻿window.torqueApp = {
-    // ... (keep map, chart, initMap, drawRoute, highlightPointOnMap as they were) ...
-    // I'll repeat the essential parts and add the new function at the end
-
     map: null,
     chart: null,
     polyline: null,
     currentMarker: null,
     dotNetRef: null,
+    // Store original chart data range for proper zoom reset
+    originalChartRange: null,
 
     initMap: function (dotNetReference) {
         this.dotNetRef = dotNetReference;
@@ -34,7 +33,6 @@
         });
     },
 
-    // ... (drawRoute and highlightPointOnMap remain the same) ...
     drawRoute: function (coordinates) {
         if (!this.map) return;
         if (this.polyline) this.map.removeLayer(this.polyline);
@@ -76,7 +74,7 @@
                         max: undefined
                     },
                     y: {
-                        display: false // Hides the Y axis because the 0-1 scale is just visual
+                        display: false
                     }
                 },
                 plugins: {
@@ -96,14 +94,14 @@
                                 window.torqueApp.updateScrollbar();
                             }
                         },
+                        // Remove limits to allow full zoom out
                         limits: {
-                            x: { min: 'original', max: 'original' }
+                            x: { min: undefined, max: undefined, minRange: undefined }
                         }
                     },
                     tooltip: {
                         animation: false,
                         callbacks: {
-                            // Customizes the Tooltip text to show the REAL value
                             label: function (context) {
                                 let label = context.dataset.label || '';
                                 if (label) {
@@ -201,9 +199,20 @@
         this.chart.data.labels = labels;
         this.chart.data.datasets = datasets;
         
-        // Reset zoom when loading new data
+        // Store original range for proper reset
+        this.originalChartRange = {
+            min: 0,
+            max: labels.length - 1
+        };
+        
+        // Explicitly reset zoom to show all data
         this.chart.options.scales.x.min = undefined;
         this.chart.options.scales.x.max = undefined;
+        
+        // Reset zoom plugin state
+        if (this.chart.resetZoom) {
+            this.chart.resetZoom();
+        }
         
         this.chart.update();
         
@@ -216,9 +225,16 @@
 
     resetChartZoom: function () {
         if (this.chart) {
+            // Explicitly clear the scale limits
+            this.chart.options.scales.x.min = undefined;
+            this.chart.options.scales.x.max = undefined;
+            
+            // Reset using the plugin
             this.chart.resetZoom();
             
-            // Hide the scrollbar when resetting
+            // Force update
+            this.chart.update('none');
+            
             const scrollbarContainer = document.getElementById('scrollbarContainer');
             if (scrollbarContainer) {
                 scrollbarContainer.style.display = 'none';
@@ -272,6 +288,8 @@
     chart1: null,
     chart2: null,
     compareRef: null,
+    originalChart1Range: null,
+    originalChart2Range: null,
 
     initCompareCharts: function (dotNetReference) {
         this.compareRef = dotNetReference;
@@ -342,8 +360,9 @@
                                 window.torqueApp.updateCompareScrollbar(chartNumber);
                             }
                         },
+                        // Remove limits to allow full zoom out
                         limits: {
-                            x: { min: 'original', max: 'original' }
+                            x: { min: undefined, max: undefined, minRange: undefined }
                         }
                     },
                     tooltip: {
@@ -380,8 +399,21 @@
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         
+        // Store original range for proper reset
+        if (chartNumber === 1) {
+            this.originalChart1Range = { min: 0, max: labels.length - 1 };
+        } else {
+            this.originalChart2Range = { min: 0, max: labels.length - 1 };
+        }
+        
+        // Explicitly reset zoom to show all data
         chart.options.scales.x.min = undefined;
         chart.options.scales.x.max = undefined;
+        
+        // Reset zoom plugin state
+        if (chart.resetZoom) {
+            chart.resetZoom();
+        }
         
         chart.update();
         
@@ -408,7 +440,15 @@
     resetCompareChartZoom: function (chartNumber) {
         const chart = chartNumber === 1 ? this.chart1 : this.chart2;
         if (chart) {
+            // Explicitly clear the scale limits
+            chart.options.scales.x.min = undefined;
+            chart.options.scales.x.max = undefined;
+            
+            // Reset using the plugin
             chart.resetZoom();
+            
+            // Force update
+            chart.update('none');
             
             const scrollbarContainer = document.getElementById(`scrollbarContainer${chartNumber}`);
             if (scrollbarContainer) {
