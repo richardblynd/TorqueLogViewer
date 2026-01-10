@@ -210,6 +210,68 @@
 
     updateChart: function (labels, datasets) {
         if (!this.chart) return;
+        
+        // Get information about the previous state
+        const xScale = this.chart.scales.x;
+        const oldTotalLabels = this.chart.data.labels.length;
+        const newTotalLabels = labels.length;
+        
+        // Check if there's actual zoom (not just undefined values on first render)
+        // Real zoom means: we have a scale, we have OLD data, and the visible range is constrained
+        let hasRealZoom = false;
+        let currentMin = undefined;
+        let currentMax = undefined;
+        
+        if (xScale && oldTotalLabels > 0) {
+            // Only consider it real zoom if:
+            // 1. min and max are explicitly set (not undefined/null)
+            // 2. The visible range is smaller than the total range
+            const isZoomed = xScale.min !== undefined && 
+                           xScale.max !== undefined &&
+                           xScale.min !== null &&
+                           xScale.max !== null &&
+                           (xScale.max - xScale.min) < (oldTotalLabels - 1);
+            
+            if (isZoomed) {
+                hasRealZoom = true;
+                // Calculate the zoom percentage to apply to new data
+                const oldVisibleRange = xScale.max - xScale.min;
+                const oldTotalRange = oldTotalLabels - 1;
+                const zoomRatio = oldVisibleRange / oldTotalRange;
+                
+                // If data size changed significantly, try to maintain similar zoom ratio
+                if (Math.abs(newTotalLabels - oldTotalLabels) > 1) {
+                    // Apply similar zoom ratio to new data
+                    const newVisibleRange = Math.floor((newTotalLabels - 1) * zoomRatio);
+                    // Try to maintain relative position
+                    const oldStartRatio = xScale.min / oldTotalRange;
+                    currentMin = Math.floor((newTotalLabels - 1) * oldStartRatio);
+                    currentMax = currentMin + newVisibleRange;
+                    
+                    // Ensure we don't go out of bounds
+                    if (currentMax >= newTotalLabels) {
+                        currentMax = newTotalLabels - 1;
+                        currentMin = currentMax - newVisibleRange;
+                    }
+                    if (currentMin < 0) {
+                        currentMin = 0;
+                        currentMax = newVisibleRange;
+                    }
+                } else {
+                    // Data size is similar, maintain the same indices
+                    currentMin = Math.min(xScale.min, newTotalLabels - 1);
+                    currentMax = Math.min(xScale.max, newTotalLabels - 1);
+                    
+                    // Verify it's still a real zoom after adjustment
+                    if (currentMax - currentMin >= newTotalLabels - 1) {
+                        hasRealZoom = false;
+                        currentMin = undefined;
+                        currentMax = undefined;
+                    }
+                }
+            }
+        }
+        
         this.chart.data.labels = labels;
         this.chart.data.datasets = datasets;
         
@@ -219,21 +281,28 @@
             max: labels.length - 1
         };
         
-        // Explicitly reset zoom to show all data
-        this.chart.options.scales.x.min = undefined;
-        this.chart.options.scales.x.max = undefined;
-        
-        // Reset zoom plugin state
-        if (this.chart.resetZoom) {
-            this.chart.resetZoom();
+        // Only preserve zoom if there was real zoom before
+        if (hasRealZoom && currentMin !== undefined && currentMax !== undefined) {
+            // Preserve the zoom by restoring the min/max values
+            this.chart.options.scales.x.min = currentMin;
+            this.chart.options.scales.x.max = currentMax;
+        } else {
+            // No zoom, reset to show all data
+            this.chart.options.scales.x.min = undefined;
+            this.chart.options.scales.x.max = undefined;
         }
         
         this.chart.update();
         
-        // Hide the scrollbar initially
-        const scrollbarContainer = document.getElementById('scrollbarContainer');
-        if (scrollbarContainer) {
-            scrollbarContainer.style.display = 'none';
+        // Update scrollbar based on current state
+        if (hasRealZoom) {
+            this.updateScrollbar();
+        } else {
+            // Hide the scrollbar initially if no zoom
+            const scrollbarContainer = document.getElementById('scrollbarContainer');
+            if (scrollbarContainer) {
+                scrollbarContainer.style.display = 'none';
+            }
         }
     },
 
@@ -433,6 +502,67 @@
         const chart = chartNumber === 1 ? this.chart1 : this.chart2;
         if (!chart) return;
 
+        // Get information about the previous state
+        const xScale = chart.scales.x;
+        const oldTotalLabels = chart.data.labels.length;
+        const newTotalLabels = labels.length;
+        
+        // Check if there's actual zoom (not just undefined values on first render)
+        // Real zoom means: we have a scale, we have OLD data, and the visible range is constrained
+        let hasRealZoom = false;
+        let currentMin = undefined;
+        let currentMax = undefined;
+        
+        if (xScale && oldTotalLabels > 0) {
+            // Only consider it real zoom if:
+            // 1. min and max are explicitly set (not undefined/null)
+            // 2. The visible range is smaller than the total range
+            const isZoomed = xScale.min !== undefined && 
+                           xScale.max !== undefined &&
+                           xScale.min !== null &&
+                           xScale.max !== null &&
+                           (xScale.max - xScale.min) < (oldTotalLabels - 1);
+            
+            if (isZoomed) {
+                hasRealZoom = true;
+                // Calculate the zoom percentage to apply to new data
+                const oldVisibleRange = xScale.max - xScale.min;
+                const oldTotalRange = oldTotalLabels - 1;
+                const zoomRatio = oldVisibleRange / oldTotalRange;
+                
+                // If data size changed significantly, try to maintain similar zoom ratio
+                if (Math.abs(newTotalLabels - oldTotalLabels) > 1) {
+                    // Apply similar zoom ratio to new data
+                    const newVisibleRange = Math.floor((newTotalLabels - 1) * zoomRatio);
+                    // Try to maintain relative position
+                    const oldStartRatio = xScale.min / oldTotalRange;
+                    currentMin = Math.floor((newTotalLabels - 1) * oldStartRatio);
+                    currentMax = currentMin + newVisibleRange;
+                    
+                    // Ensure we don't go out of bounds
+                    if (currentMax >= newTotalLabels) {
+                        currentMax = newTotalLabels - 1;
+                        currentMin = currentMax - newVisibleRange;
+                    }
+                    if (currentMin < 0) {
+                        currentMin = 0;
+                        currentMax = newVisibleRange;
+                    }
+                } else {
+                    // Data size is similar, maintain the same indices
+                    currentMin = Math.min(xScale.min, newTotalLabels - 1);
+                    currentMax = Math.min(xScale.max, newTotalLabels - 1);
+                    
+                    // Verify it's still a real zoom after adjustment
+                    if (currentMax - currentMin >= newTotalLabels - 1) {
+                        hasRealZoom = false;
+                        currentMin = undefined;
+                        currentMax = undefined;
+                    }
+                }
+            }
+        }
+
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         
@@ -443,20 +573,27 @@
             this.originalChart2Range = { min: 0, max: labels.length - 1 };
         }
         
-        // Explicitly reset zoom to show all data
-        chart.options.scales.x.min = undefined;
-        chart.options.scales.x.max = undefined;
-        
-        // Reset zoom plugin state
-        if (chart.resetZoom) {
-            chart.resetZoom();
+        // Only preserve zoom if there was real zoom before
+        if (hasRealZoom && currentMin !== undefined && currentMax !== undefined) {
+            // Preserve the zoom by restoring the min/max values
+            chart.options.scales.x.min = currentMin;
+            chart.options.scales.x.max = currentMax;
+        } else {
+            // No zoom, reset to show all data
+            chart.options.scales.x.min = undefined;
+            chart.options.scales.x.max = undefined;
         }
         
         chart.update();
         
-        const scrollbarContainer = document.getElementById(`scrollbarContainer${chartNumber}`);
-        if (scrollbarContainer) {
-            scrollbarContainer.style.display = 'none';
+        // Update scrollbar based on current state
+        if (hasRealZoom) {
+            this.updateCompareScrollbar(chartNumber);
+        } else {
+            const scrollbarContainer = document.getElementById(`scrollbarContainer${chartNumber}`);
+            if (scrollbarContainer) {
+                scrollbarContainer.style.display = 'none';
+            }
         }
     },
 
