@@ -172,36 +172,77 @@
                 </div>
 
                 <div class="form-group">
-                    <label>First Sensor:</label>
-                    <select @bind="VirtualSensorA" class="form-select">
-                        <option value="">-- Select Sensor --</option>
-                        @foreach (var sensor in AvailableSensors)
-                        {
-                            <option value="@sensor">@sensor</option>
-                        }
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Operation:</label>
-                    <select @bind="VirtualSensorOperation" class="form-select">
+                    <label>Operation Type:</label>
+                    <select @bind="VirtualSensorOperation" @bind:after="OnOperationTypeChanged" class="form-select">
                         <option value="+">Addition (+)</option>
                         <option value="-">Subtraction (-)</option>
                         <option value="*">Multiplication (×)</option>
                         <option value="/">Division (÷)</option>
+                        <option value="ChangeTime">Change Time (Progressive time since value changed)</option>
+                        <option value="ChangeTimeMs">Change Time Ms (Progressive time in milliseconds)</option>
+                        <option value="MaxChangeTime">Max Change Time (Constant duration between changes)</option>
+                        <option value="MaxChangeTimeMs">Max Change Time Ms (Constant duration in milliseconds)</option>
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label>Second Sensor:</label>
-                    <select @bind="VirtualSensorB" class="form-select">
-                        <option value="">-- Select Sensor --</option>
-                        @foreach (var sensor in AvailableSensors)
+                @if (IsChangeTimeOperation)
+                {
+                    <div class="form-group">
+                        <label>Sensor to Monitor:</label>
+                        <select @bind="VirtualSensorA" class="form-select">
+                            <option value="">-- Select Sensor --</option>
+                            @foreach (var sensor in AvailableSensors)
+                            {
+                                <option value="@sensor">@sensor</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="background-color: #e3f2fd; padding: 10px; border-radius: 4px; font-size: 0.85rem;">
+                        @if (VirtualSensorOperation == "ChangeTime" || VirtualSensorOperation == "ChangeTimeMs")
                         {
-                            <option value="@sensor">@sensor</option>
+                            <strong>ℹ️ Progressive Change Time Operation</strong>
+                            <p style="margin: 5px 0 0 0;">
+                                This operation calculates the <strong>progressive time elapsed</strong> since the sensor value last changed.
+                                The value starts at 0 when the sensor changes and increases continuously until the next change.
+                                Useful for real-time monitoring of sensor response delays and state duration.
+                            </p>
                         }
-                    </select>
-                </div>
+                        else if (VirtualSensorOperation == "MaxChangeTime" || VirtualSensorOperation == "MaxChangeTimeMs")
+                        {
+                            <strong>ℹ️ Max Change Time Operation</strong>
+                            <p style="margin: 5px 0 0 0;">
+                                This operation calculates the <strong>total duration</strong> between value changes.
+                                The value remains constant between changes, showing the complete duration the sensor held each value.
+                                Useful for analyzing stability periods, dwell time, and maximum latency between state transitions.
+                            </p>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label>First Sensor:</label>
+                        <select @bind="VirtualSensorA" class="form-select">
+                            <option value="">-- Select Sensor --</option>
+                            @foreach (var sensor in AvailableSensors)
+                            {
+                                <option value="@sensor">@sensor</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Second Sensor:</label>
+                        <select @bind="VirtualSensorB" class="form-select">
+                            <option value="">-- Select Sensor --</option>
+                            @foreach (var sensor in AvailableSensors)
+                            {
+                                <option value="@sensor">@sensor</option>
+                            }
+                        </select>
+                    </div>
+                }
             </div>
             <div class="modal-footer">
                 <button class="btn-cancel" @onclick="CloseVirtualSensorModal">Cancel</button>
@@ -592,6 +633,10 @@
     private string VirtualSensorB = string.Empty;
     private string VirtualSensorOperation = "+";
     private List<VirtualSensor> VirtualSensors = new();
+    private bool IsChangeTimeOperation => VirtualSensorOperation == "ChangeTime" || 
+                                          VirtualSensorOperation == "ChangeTimeMs" ||
+                                          VirtualSensorOperation == "MaxChangeTime" ||
+                                          VirtualSensorOperation == "MaxChangeTimeMs";
 
     // Mapping of Portuguese month abbreviations to numbers
     private static readonly Dictionary<string, int> MonthMap = new(StringComparer.OrdinalIgnoreCase)
@@ -903,6 +948,16 @@
         Console.WriteLine($"[{parseEndTime:HH:mm:ss}] ParseCSV: Completed (total duration: {totalParseDuration:F2}ms)");
     }
 
+    private void OnOperationTypeChanged()
+    {
+        // Reset second sensor when switching to ChangeTime
+        if (IsChangeTimeOperation)
+        {
+            VirtualSensorB = string.Empty;
+        }
+        StateHasChanged();
+    }
+
     private string[] ParseCsvLineOptimized(string line)
     {
         // Fast path for lines without quotes
@@ -1054,7 +1109,7 @@
         {
             for (int i = 0; i < LogData.Count; i++)
             {
-                labels[i] = LogData[i].DeviceTime.ToString("HH:mm:ss");
+                labels[i] = LogData[i].DeviceTime.ToString("HH:mm:ss.fff");
             }
         }
         else
@@ -1433,16 +1488,26 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(VirtualSensorA) || string.IsNullOrWhiteSpace(VirtualSensorB))
+        if (string.IsNullOrWhiteSpace(VirtualSensorA))
         {
-            await JS.InvokeVoidAsync("alert", "Please select both sensors.");
+            await JS.InvokeVoidAsync("alert", IsChangeTimeOperation ? "Please select a sensor to monitor." : "Please select the first sensor.");
             return;
         }
 
-        if (VirtualSensorA == VirtualSensorB)
+        // For non-ChangeTime operations, validate second sensor
+        if (!IsChangeTimeOperation)
         {
-            await JS.InvokeVoidAsync("alert", "Please select two different sensors.");
-            return;
+            if (string.IsNullOrWhiteSpace(VirtualSensorB))
+            {
+                await JS.InvokeVoidAsync("alert", "Please select both sensors.");
+                return;
+            }
+
+            if (VirtualSensorA == VirtualSensorB)
+            {
+                await JS.InvokeVoidAsync("alert", "Please select two different sensors.");
+                return;
+            }
         }
 
         // Check if virtual sensor name already exists
@@ -1485,6 +1550,21 @@
 
     private void CalculateVirtualSensorValues(VirtualSensor virtualSensor)
     {
+        // Handle ChangeTime operations specially
+        if (virtualSensor.Operation == "ChangeTime" || virtualSensor.Operation == "ChangeTimeMs")
+        {
+            CalculateChangeTimeValues(virtualSensor);
+            return;
+        }
+
+        // Handle MaxChangeTime operations
+        if (virtualSensor.Operation == "MaxChangeTime" || virtualSensor.Operation == "MaxChangeTimeMs")
+        {
+            CalculateMaxChangeTimeValues(virtualSensor);
+            return;
+        }
+
+        // Standard binary operations
         foreach (var point in LogData)
         {
             double valueA = point.RawData.ContainsKey(virtualSensor.SensorA) ? point.RawData[virtualSensor.SensorA] : 0;
@@ -1500,6 +1580,106 @@
             };
 
             point.RawData[virtualSensor.Name] = result;
+        }
+    }
+
+    private void CalculateChangeTimeValues(VirtualSensor virtualSensor)
+    {
+        if (LogData.Count == 0) return;
+
+        bool useMilliseconds = virtualSensor.Operation == "ChangeTimeMs";
+        double lastValue = double.NaN;
+        DateTime lastChangeTime = DateTime.MinValue;
+
+        for (int i = 0; i < LogData.Count; i++)
+        {
+            var point = LogData[i];
+            double currentValue = point.RawData.ContainsKey(virtualSensor.SensorA) 
+                ? point.RawData[virtualSensor.SensorA] 
+                : 0;
+
+            // First point or value changed
+            if (double.IsNaN(lastValue) || Math.Abs(currentValue - lastValue) > double.Epsilon)
+            {
+                lastValue = currentValue;
+                lastChangeTime = point.DeviceTime;
+                point.RawData[virtualSensor.Name] = 0; // Time since change is 0 at the change point
+            }
+            else
+            {
+                // Calculate time since last change (progressive)
+                var timeSinceChange = point.DeviceTime - lastChangeTime;
+                double value = useMilliseconds 
+                    ? timeSinceChange.TotalMilliseconds 
+                    : timeSinceChange.TotalSeconds;
+                
+                point.RawData[virtualSensor.Name] = value;
+            }
+        }
+    }
+
+    private void CalculateMaxChangeTimeValues(VirtualSensor virtualSensor)
+    {
+        if (LogData.Count == 0) return;
+
+        bool useMilliseconds = virtualSensor.Operation == "MaxChangeTimeMs";
+        double lastValue = double.NaN;
+        DateTime lastChangeTime = DateTime.MinValue;
+        int lastChangeIndex = 0;
+
+        // First pass: detect all change points and calculate durations
+        var changeDurations = new List<(int startIndex, int endIndex, double duration)>();
+
+        for (int i = 0; i < LogData.Count; i++)
+        {
+            var point = LogData[i];
+            double currentValue = point.RawData.ContainsKey(virtualSensor.SensorA) 
+                ? point.RawData[virtualSensor.SensorA] 
+                : 0;
+
+            // First point
+            if (double.IsNaN(lastValue))
+            {
+                lastValue = currentValue;
+                lastChangeTime = point.DeviceTime;
+                lastChangeIndex = i;
+            }
+            // Value changed
+            else if (Math.Abs(currentValue - lastValue) > double.Epsilon)
+            {
+                // Calculate the duration for the previous segment
+                var duration = point.DeviceTime - lastChangeTime;
+                double durationValue = useMilliseconds 
+                    ? duration.TotalMilliseconds 
+                    : duration.TotalSeconds;
+
+                changeDurations.Add((lastChangeIndex, i - 1, durationValue));
+
+                // Update for next segment
+                lastValue = currentValue;
+                lastChangeTime = point.DeviceTime;
+                lastChangeIndex = i;
+            }
+        }
+
+        // Add the final segment (from last change to end)
+        if (lastChangeIndex < LogData.Count)
+        {
+            var finalDuration = LogData[LogData.Count - 1].DeviceTime - lastChangeTime;
+            double finalDurationValue = useMilliseconds 
+                ? finalDuration.TotalMilliseconds 
+                : finalDuration.TotalSeconds;
+
+            changeDurations.Add((lastChangeIndex, LogData.Count - 1, finalDurationValue));
+        }
+
+        // Second pass: apply the constant duration values to all points in each segment
+        foreach (var (startIndex, endIndex, duration) in changeDurations)
+        {
+            for (int i = startIndex; i <= endIndex; i++)
+            {
+                LogData[i].RawData[virtualSensor.Name] = duration;
+            }
         }
     }
 
