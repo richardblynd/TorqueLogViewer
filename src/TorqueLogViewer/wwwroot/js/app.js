@@ -120,10 +120,24 @@
                     }
                 },
                 onClick: (e, elements) => {
+                    const startTime = performance.now();
+                    console.log(`[JS ${new Date().toISOString().substr(11, 12)}] Chart onClick: Event triggered`);
+                    
                     if (elements && elements.length > 0) {
                         const index = elements[0].index;
+                        const step1Time = performance.now();
+                        console.log(`[JS ${new Date().toISOString().substr(11, 12)}] Chart onClick: Index extracted (${index}), duration: ${(step1Time - startTime).toFixed(2)}ms`);
+                        
+                        const invokeStartTime = performance.now();
                         window.torqueApp.dotNetRef.invokeMethodAsync('OnChartClick', index);
+                        const invokeEndTime = performance.now();
+                        console.log(`[JS ${new Date().toISOString().substr(11, 12)}] Chart onClick: invokeMethodAsync called, duration: ${(invokeEndTime - invokeStartTime).toFixed(2)}ms`);
+                    } else {
+                        console.log(`[JS ${new Date().toISOString().substr(11, 12)}] Chart onClick: No elements clicked`);
                     }
+                    
+                    const endTime = performance.now();
+                    console.log(`[JS ${new Date().toISOString().substr(11, 12)}] Chart onClick: Completed (total duration: ${(endTime - startTime).toFixed(2)}ms)`);
                 }
             }
         });
@@ -244,22 +258,45 @@
 
     // --- NEW MAGIC FUNCTION ---
     highlightPointOnChart: function (index) {
-        if (!this.chart) return;
+        const startTime = performance.now();
+        console.log(`[JS ${new Date().toISOString().substr(11, 12)}] highlightPointOnChart: Started (index: ${index})`);
+        
+        if (!this.chart) {
+            console.log(`[JS ${new Date().toISOString().substr(11, 12)}] highlightPointOnChart: Chart not initialized`);
+            return;
+        }
+
+        const step1Time = performance.now();
+        console.log(`[JS ${new Date().toISOString().substr(11, 12)}] highlightPointOnChart: Chart check (duration: ${(step1Time - startTime).toFixed(2)}ms)`);
 
         // Identifies the points corresponding to the index in all visible datasets
         const activeElements = this.chart.data.datasets.map((ds, i) => ({
             datasetIndex: i,
             index: index
         }));
+        
+        const step2Time = performance.now();
+        console.log(`[JS ${new Date().toISOString().substr(11, 12)}] highlightPointOnChart: Active elements created (count: ${activeElements.length}, duration: ${(step2Time - step1Time).toFixed(2)}ms)`);
 
         // Visually activates the points (hover effect)
         this.chart.setActiveElements(activeElements);
+        
+        const step3Time = performance.now();
+        console.log(`[JS ${new Date().toISOString().substr(11, 12)}] highlightPointOnChart: setActiveElements called (duration: ${(step3Time - step2Time).toFixed(2)}ms)`);
 
         // Forces the Tooltip to display
         this.chart.tooltip.setActiveElements(activeElements);
+        
+        const step4Time = performance.now();
+        console.log(`[JS ${new Date().toISOString().substr(11, 12)}] highlightPointOnChart: tooltip.setActiveElements called (duration: ${(step4Time - step3Time).toFixed(2)}ms)`);
 
         // Renders the changes
         this.chart.update();
+        
+        const endTime = performance.now();
+        const totalDuration = endTime - startTime;
+        console.log(`[JS ${new Date().toISOString().substr(11, 12)}] highlightPointOnChart: chart.update called (duration: ${(endTime - step4Time).toFixed(2)}ms)`);
+        console.log(`[JS ${new Date().toISOString().substr(11, 12)}] highlightPointOnChart: Completed (total duration: ${totalDuration.toFixed(2)}ms)`);
     },
 
     // Clipboard functions for sensor synchronization

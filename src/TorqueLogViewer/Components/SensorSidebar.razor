@@ -1,4 +1,5 @@
 @inject IJSRuntime JS
+@implements IDisposable
 
 <div class="sensor-sidebar @(IsExpanded ? "expanded" : "collapsed")">
     <button class="sidebar-toggle" @onclick="ToggleSidebar" title="@(IsExpanded ? "Collapse sidebar" : "Expand sidebar")">
@@ -61,7 +62,7 @@
                                     <div class="sensor-stats">
                                         <span class="sensor-stat-min" title="Minimum value"><span class="icon-min">&#9660;</span> @GetSensorMin(sensor)</span>
                                         <span class="sensor-stat-max" title="Maximum value"><span class="icon-max">&#9650;</span> @GetSensorMax(sensor)</span>
-                                        <span class="sensor-value" title="Current value">@GetSensorValue(sensor)</span>
+                                        <span class="sensor-value" title="Current value">@GetCurrentSensorValue(sensor)</span>
                                     </div>
                                 </label>
                             </div>
@@ -91,7 +92,7 @@
                                             <div class="sensor-stats">
                                                 <span class="sensor-stat-min" title="Minimum value"><span class="icon-min">&#9660;</span> @GetSensorMin(sensor)</span>
                                                 <span class="sensor-stat-max" title="Maximum value"><span class="icon-max">&#9650;</span> @GetSensorMax(sensor)</span>
-                                                <span class="sensor-value" title="Current value">@GetSensorValue(sensor)</span>
+                                                <span class="sensor-value" title="Current value">@GetCurrentSensorValue(sensor)</span>
                                             </div>
                                         </label>
                                     </div>
@@ -140,6 +141,10 @@
 
     // Cache for min/max values
     private Dictionary<string, (double min, double max)> _sensorMinMaxCache = new();
+    
+    // Cache for current values - updated only when CurrentPoint changes
+    private Dictionary<string, double> _currentValuesCache = new();
+    private object? _lastCurrentPoint = null;
 
     private void ToggleSidebar()
     {
@@ -200,21 +205,61 @@
         return SensorColorMapping.ContainsKey(sensor) ? SensorColorMapping[sensor] : "#999";
     }
 
-    private string GetSensorValue(string sensor)
+    private void UpdateCurrentValuesCache()
     {
-        if (CurrentPoint == null) return "-";
+        var startTime = DateTime.Now;
+        Console.WriteLine($"[{startTime:HH:mm:ss.fff}] SensorSidebar.UpdateCurrentValuesCache: Started");
+        
+        _currentValuesCache.Clear();
+        
+        if (CurrentPoint == null)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] SensorSidebar.UpdateCurrentValuesCache: CurrentPoint is null");
+            return;
+        }
 
+        var step1Time = DateTime.Now;
+        
         // Use reflection to get RawData property
         var pointType = CurrentPoint.GetType();
         var rawDataProperty = pointType.GetProperty("RawData");
         
-        if (rawDataProperty == null) return "-";
+        if (rawDataProperty == null)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] SensorSidebar.UpdateCurrentValuesCache: RawData property not found");
+            return;
+        }
 
+        var step2Time = DateTime.Now;
         var rawData = rawDataProperty.GetValue(CurrentPoint) as Dictionary<string, double>;
         
-        if (rawData == null || !rawData.ContainsKey(sensor)) return "-";
+        if (rawData == null)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] SensorSidebar.UpdateCurrentValuesCache: RawData is null");
+            return;
+        }
 
-        return rawData[sensor].ToString("F2");
+        var step3Time = DateTime.Now;
+        
+        // Cache all values at once
+        foreach (var kvp in rawData)
+        {
+            _currentValuesCache[kvp.Key] = kvp.Value;
+        }
+        
+        var endTime = DateTime.Now;
+        var totalDuration = (endTime - startTime).TotalMilliseconds;
+        Console.WriteLine($"[{endTime:HH:mm:ss.fff}] SensorSidebar.UpdateCurrentValuesCache: Completed (cached {_currentValuesCache.Count} values, duration: {totalDuration:F2}ms)");
+    }
+
+    private string GetCurrentSensorValue(string sensor)
+    {
+        if (_currentValuesCache.TryGetValue(sensor, out double value))
+        {
+            return value.ToString("F2");
+        }
+        
+        return "-";
     }
 
     private string GetSensorMin(string sensor)
@@ -280,10 +325,45 @@
 
     protected override void OnParametersSet()
     {
-        // Clear cache when AllLogData changes
-        if (AllLogData != null)
+        var startTime = DateTime.Now;
+        Console.WriteLine($"[{startTime:HH:mm:ss.fff}] SensorSidebar.OnParametersSet: Started");
+        
+        // Clear min/max cache when AllLogData changes
+        if (AllLogData != null && _sensorMinMaxCache.Count == 0)
         {
             _sensorMinMaxCache.Clear();
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] SensorSidebar.OnParametersSet: Cleared min/max cache");
         }
+        
+        // Update current values cache only if CurrentPoint actually changed
+        if (CurrentPoint != _lastCurrentPoint)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] SensorSidebar.OnParametersSet: CurrentPoint changed, updating cache");
+            _lastCurrentPoint = CurrentPoint;
+            UpdateCurrentValuesCache();
+        }
+        
+        var endTime = DateTime.Now;
+        var duration = (endTime - startTime).TotalMilliseconds;
+        Console.WriteLine($"[{endTime:HH:mm:ss.fff}] SensorSidebar.OnParametersSet: Completed (duration: {duration:F2}ms)");
+    }
+
+    protected override bool ShouldRender()
+    {
+        var startTime = DateTime.Now;
+        Console.WriteLine($"[{startTime:HH:mm:ss.fff}] SensorSidebar.ShouldRender: Checking if render needed");
+        
+        // Always render for now, but log it so we can see how often it's called
+        var endTime = DateTime.Now;
+        var duration = (endTime - startTime).TotalMilliseconds;
+        Console.WriteLine($"[{endTime:HH:mm:ss.fff}] SensorSidebar.ShouldRender: Returning true (duration: {duration:F2}ms)");
+        
+        return true;
+    }
+
+    public void Dispose()
+    {
+        _sensorMinMaxCache.Clear();
+        _currentValuesCache.Clear();
     }
 }

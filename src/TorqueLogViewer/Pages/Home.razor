@@ -1236,22 +1236,56 @@
     [JSInvokable]
     public void OnChartClick(int index)
     {
+        var startTime = DateTime.Now;
+        Console.WriteLine($"[{startTime:HH:mm:ss.fff}] OnChartClick: Started (index: {index})");
+        
         SelectPoint(index);
+        
+        var endTime = DateTime.Now;
+        var duration = (endTime - startTime).TotalMilliseconds;
+        Console.WriteLine($"[{endTime:HH:mm:ss.fff}] OnChartClick: Completed (duration: {duration:F2}ms)");
     }
 
     private void SelectPoint(int index)
     {
-        if (index < 0 || index >= LogData.Count) return;
+        var startTime = DateTime.Now;
+        Console.WriteLine($"[{startTime:HH:mm:ss.fff}] SelectPoint: Started (index: {index})");
+        
+        if (index < 0 || index >= LogData.Count)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] SelectPoint: Invalid index, returning");
+            return;
+        }
 
+        var step1Time = DateTime.Now;
         CurrentIndex = index;
         CurrentPoint = LogData[index];
-        StateHasChanged();
+        Console.WriteLine($"[{step1Time:HH:mm:ss.fff}] SelectPoint: Set CurrentPoint (duration: {(step1Time - startTime).TotalMilliseconds:F2}ms)");
+
+        // REMOVED StateHasChanged() - we'll call it only after JS operations complete
+        // This prevents re-rendering the entire page (including SensorSidebar) synchronously
 
         // 1. Update visual on map
+        var step3StartTime = DateTime.Now;
         JS.InvokeVoidAsync("torqueApp.highlightPointOnMap", CurrentPoint.Latitude, CurrentPoint.Longitude);
+        var step3Time = DateTime.Now;
+        Console.WriteLine($"[{step3Time:HH:mm:ss.fff}] SelectPoint: highlightPointOnMap called (duration: {(step3Time - step3StartTime).TotalMilliseconds:F2}ms)");
 
         // 2. Update visual on chart
+        var step4StartTime = DateTime.Now;
         JS.InvokeVoidAsync("torqueApp.highlightPointOnChart", index);
+        var step4Time = DateTime.Now;
+        Console.WriteLine($"[{step4Time:HH:mm:ss.fff}] SelectPoint: highlightPointOnChart called (duration: {(step4Time - step4StartTime).TotalMilliseconds:F2}ms)");
+
+        // 3. Now trigger StateHasChanged to update the UI (async, won't block)
+        var step5StartTime = DateTime.Now;
+        _ = InvokeAsync(StateHasChanged);
+        var step5Time = DateTime.Now;
+        Console.WriteLine($"[{step5Time:HH:mm:ss.fff}] SelectPoint: InvokeAsync(StateHasChanged) queued (duration: {(step5Time - step5StartTime).TotalMilliseconds:F2}ms)");
+
+        var endTime = DateTime.Now;
+        var totalDuration = (endTime - startTime).TotalMilliseconds;
+        Console.WriteLine($"[{endTime:HH:mm:ss.fff}] SelectPoint: Completed (total duration: {totalDuration:F2}ms)");
     }
 
     private string GetValue(LogPoint p, string key)
