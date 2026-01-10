@@ -601,7 +601,7 @@
     private List<string> AvailableSensors = new();
     private HashSet<string> SelectedSensors = new();
     private bool IsSensorSidebarExpanded = true;
-    private bool IsMapVisible = true;
+    private bool IsMapVisible = false;
 
     // Sampling configuration
     private string SamplingMode = "None"; // None, Time, Index
@@ -650,8 +650,49 @@
     {
         if (firstRender)
         {
-            await JS.InvokeVoidAsync("torqueApp.initMap", DotNetObjectReference.Create(this));
+            // Only initialize the map if it's visible on first render
+            if (IsMapVisible)
+            {
+                await JS.InvokeVoidAsync("torqueApp.initMap", DotNetObjectReference.Create(this));
+            }
             await JS.InvokeVoidAsync("torqueApp.initChart");
+        }
+    }
+
+    private async Task InitializeMapIfNeeded()
+    {
+        // Initialize map on demand when it becomes visible
+        try
+        {
+            await JS.InvokeVoidAsync("torqueApp.initMap", DotNetObjectReference.Create(this));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initializing map: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleMapVisibility()
+    {
+        IsMapVisible = !IsMapVisible;
+        StateHasChanged();
+        
+        // If map is now visible and hasn't been initialized yet, initialize it
+        if (IsMapVisible)
+        {
+            await Task.Delay(100); // Small delay to ensure DOM is updated
+            await InitializeMapIfNeeded();
+            
+            // If we have data, redraw the route
+            if (IsDataLoaded)
+            {
+                var route = LogData
+                    .Where(p => p.Latitude != 0 && p.Longitude != 0)
+                    .Select(p => new[] { p.Latitude, p.Longitude })
+                    .ToList();
+                
+                await JS.InvokeVoidAsync("torqueApp.drawRoute", route);
+            }
         }
     }
 
@@ -1085,14 +1126,17 @@
     {
         if (!IsDataLoaded) return;
 
-        // 1. Update Map (Route)
-        // Filter points with valid lat/lon (different from 0 or null if possible)
-        var route = LogData
-            .Where(p => p.Latitude != 0 && p.Longitude != 0)
-            .Select(p => new[] { p.Latitude, p.Longitude })
-            .ToList();
+        // 1. Update Map (Route) - only if map is visible
+        if (IsMapVisible)
+        {
+            // Filter points with valid lat/lon (different from 0 or null if possible)
+            var route = LogData
+                .Where(p => p.Latitude != 0 && p.Longitude != 0)
+                .Select(p => new[] { p.Latitude, p.Longitude })
+                .ToList();
 
-        JS.InvokeVoidAsync("torqueApp.drawRoute", route);
+            JS.InvokeVoidAsync("torqueApp.drawRoute", route);
+        }
 
         // 2. Update Chart
         UpdateChartData();
@@ -1203,12 +1247,6 @@
         StateHasChanged();
     }
 
-    private void ToggleMapVisibility()
-    {
-        IsMapVisible = !IsMapVisible;
-        StateHasChanged();
-    }
-
     private void OnXAxisChanged(ChangeEventArgs e)
     {
         XAxisMode = e.Value?.ToString() ?? "DeviceTime";
@@ -1265,11 +1303,14 @@
         // REMOVED StateHasChanged() - we'll call it only after JS operations complete
         // This prevents re-rendering the entire page (including SensorSidebar) synchronously
 
-        // 1. Update visual on map
-        var step3StartTime = DateTime.Now;
-        JS.InvokeVoidAsync("torqueApp.highlightPointOnMap", CurrentPoint.Latitude, CurrentPoint.Longitude);
-        var step3Time = DateTime.Now;
-        Console.WriteLine($"[{step3Time:HH:mm:ss.fff}] SelectPoint: highlightPointOnMap called (duration: {(step3Time - step3StartTime).TotalMilliseconds:F2}ms)");
+        // 1. Update visual on map - only if map is visible
+        if (IsMapVisible)
+        {
+            var step3StartTime = DateTime.Now;
+            JS.InvokeVoidAsync("torqueApp.highlightPointOnMap", CurrentPoint.Latitude, CurrentPoint.Longitude);
+            var step3Time = DateTime.Now;
+            Console.WriteLine($"[{step3Time:HH:mm:ss.fff}] SelectPoint: highlightPointOnMap called (duration: {(step3Time - step3StartTime).TotalMilliseconds:F2}ms)");
+        }
 
         // 2. Update visual on chart
         var step4StartTime = DateTime.Now;

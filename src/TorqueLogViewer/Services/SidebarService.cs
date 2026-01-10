@@ -2,7 +2,7 @@ namespace TorqueLogViewer.Services;
 
 public class SidebarService
 {
-    private bool _isCollapsed = false;
+    private bool _isCollapsed = true;
 
     public bool IsCollapsed
     {
