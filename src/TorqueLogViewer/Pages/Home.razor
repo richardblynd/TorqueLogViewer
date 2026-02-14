@@ -70,9 +70,20 @@
                                                 var numX = 100 + numberRadius * Math.Cos(angle * Math.PI / 180);
                                                 var numY = 100 + numberRadius * Math.Sin(angle * Math.PI / 180) + 4;
                                                 var displayValue = minValue + (i / 10.0) * (maxValue - minValue);
-                                                var textMarkup = new MarkupString($"<text class=\"gauge-number\" x=\"{numX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}\" y=\"{numY.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}\">{displayValue.ToString("F0")}</text>");
+                                                <text>
+                                                    <text class="gauge-number" 
+                                                          x="@numX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
+                                                          y="@numY.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)">
+                                                        @displayValue.ToString("F0")
+                                                    </text>
+                                                </text>
+
+                                                @* var textMarkup = new MarkupString($"
+                                                    <text class=\"gauge-number\"
+                                                        x=\"{numX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}\"
+                                                        y=\"{numY.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}\">{displayValue.ToString("F0")}</text>");
                                                 
-                                                @textMarkup
+                                                @textMarkup *@
                                             }
                                         }
                                         @{
@@ -86,7 +97,10 @@
                                               x2="@needleX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
                                               y2="@needleY.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"/>
                                         <circle class="gauge-center-dot" cx="100" cy="100" r="5"/>
-                                        @(new MarkupString($"<text class=\"gauge-digital-value\" x=\"100\" y=\"145\">{currentValue.ToString("F1")}</text>"))
+                                        <text>
+                                            <text class="gauge-digital-value" x="100" y="145">@currentValue.ToString("F1")</text>
+                                        </text>
+                                        @* @(new MarkupString($"<text class=\"gauge-digital-value\" x=\"100\" y=\"145\">{currentValue.ToString("F1")}</text>")) *@
                                     </svg>
                                 </div>
                             </div>
