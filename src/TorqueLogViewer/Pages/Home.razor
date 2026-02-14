@@ -650,12 +650,14 @@
     {
         if (firstRender)
         {
+            // Initialize chart with .NET reference
+            await JS.InvokeVoidAsync("torqueApp.initChart", DotNetObjectReference.Create(this));
+            
             // Only initialize the map if it's visible on first render
             if (IsMapVisible)
             {
                 await JS.InvokeVoidAsync("torqueApp.initMap", DotNetObjectReference.Create(this));
             }
-            await JS.InvokeVoidAsync("torqueApp.initChart");
         }
     }
 

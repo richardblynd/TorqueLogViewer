@@ -53,7 +53,12 @@
         }
     },
 
-    initChart: function () {
+    initChart: function (dotNetReference) {
+        // Store the reference if provided
+        if (dotNetReference) {
+            this.dotNetRef = dotNetReference;
+        }
+        
         const ctx = document.getElementById('logChart');
         if (this.chart) this.chart.destroy();
 
@@ -128,10 +133,14 @@
                         const step1Time = performance.now();
                         console.log(`[JS ${new Date().toISOString().substr(11, 12)}] Chart onClick: Index extracted (${index}), duration: ${(step1Time - startTime).toFixed(2)}ms`);
                         
-                        const invokeStartTime = performance.now();
-                        window.torqueApp.dotNetRef.invokeMethodAsync('OnChartClick', index);
-                        const invokeEndTime = performance.now();
-                        console.log(`[JS ${new Date().toISOString().substr(11, 12)}] Chart onClick: invokeMethodAsync called, duration: ${(invokeEndTime - invokeStartTime).toFixed(2)}ms`);
+                        if (window.torqueApp.dotNetRef) {
+                            const invokeStartTime = performance.now();
+                            window.torqueApp.dotNetRef.invokeMethodAsync('OnChartClick', index);
+                            const invokeEndTime = performance.now();
+                            console.log(`[JS ${new Date().toISOString().substr(11, 12)}] Chart onClick: invokeMethodAsync called, duration: ${(invokeEndTime - invokeStartTime).toFixed(2)}ms`);
+                        } else {
+                            console.error(`[JS ${new Date().toISOString().substr(11, 12)}] Chart onClick: dotNetRef is null!`);
+                        }
                     } else {
                         console.log(`[JS ${new Date().toISOString().substr(11, 12)}] Chart onClick: No elements clicked`);
                     }
