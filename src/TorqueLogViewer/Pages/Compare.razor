@@ -86,6 +86,15 @@
                             Time: @CurrentPoint1.DeviceTime.ToString("HH:mm:ss") |
                             Speed: @GetValue(CurrentPoint1, "Speed (GPS)(km/h)") km/h |
                             RPM: @GetValue(CurrentPoint1, "Engine RPM(rpm)")
+                            <span style="margin-left: 15px; color: #666; font-size: 0.8rem;">
+                                ?? Use ? ? to navigate
+                            </span>
+                        </div>
+                    }
+                    else if (IsChart1Loaded)
+                    {
+                        <div style="color: #666; font-size: 0.85rem;">
+                            Click on a point to select it
                         </div>
                     }
                 </div>
@@ -166,6 +175,15 @@
                             Time: @CurrentPoint2.DeviceTime.ToString("HH:mm:ss") |
                             Speed: @GetValue(CurrentPoint2, "Speed (GPS)(km/h)") km/h |
                             RPM: @GetValue(CurrentPoint2, "Engine RPM(rpm)")
+                            <span style="margin-left: 15px; color: #666; font-size: 0.8rem;">
+                                ?? Use ? ? to navigate
+                            </span>
+                        </div>
+                    }
+                    else if (IsChart2Loaded)
+                    {
+                        <div style="color: #666; font-size: 0.85rem;">
+                            Click on a point to select it
                         </div>
                     }
                 </div>
@@ -904,6 +922,13 @@
     {
         // Use Chart 1 as reference
         if (!IsChart1Loaded || LogData1.Count == 0) return;
+
+        // If no point is selected, start from the beginning
+        if (CurrentIndex1 < 0)
+        {
+            SelectPoint(1, 0);
+            return;
+        }
 
         int newIndex = CurrentIndex1 + direction;
 

@@ -20,17 +20,59 @@
         this.map.on('click', function (e) {
             window.torqueApp.dotNetRef.invokeMethodAsync('OnMapClick', e.latlng.lat, e.latlng.lng);
         });
+    },
 
-        document.addEventListener('keydown', (e) => {
-            // Added preventDefault so the page doesn't scroll with arrow keys
+    // Setup keyboard navigation - now separated from map initialization
+    setupKeyboardNavigation: function() {
+        // Remove any existing listener to avoid duplicates
+        if (this.keyboardHandler) {
+            document.removeEventListener('keydown', this.keyboardHandler);
+        }
+
+        // Create the handler function
+        this.keyboardHandler = (e) => {
+            // Ignore keyboard events if user is typing in an input field
+            const activeElement = document.activeElement;
+            if (activeElement && (
+                activeElement.tagName === 'INPUT' ||
+                activeElement.tagName === 'TEXTAREA' ||
+                activeElement.tagName === 'SELECT' ||
+                activeElement.isContentEditable
+            )) {
+                return;
+            }
+
+            // Handle arrow key navigation
             if (e.key === "ArrowRight") {
                 e.preventDefault();
-                window.torqueApp.dotNetRef.invokeMethodAsync('MoveSelection', 1);
+                console.log('[JS] ArrowRight pressed - moving to next point');
+                
+                // Check if we're on the Compare page
+                if (window.torqueApp.compareRef) {
+                    window.torqueApp.compareRef.invokeMethodAsync('MoveCompareSelection', 1);
+                } 
+                // Otherwise use the main Home page reference
+                else if (window.torqueApp.dotNetRef) {
+                    window.torqueApp.dotNetRef.invokeMethodAsync('MoveSelection', 1);
+                }
             } else if (e.key === "ArrowLeft") {
                 e.preventDefault();
-                window.torqueApp.dotNetRef.invokeMethodAsync('MoveSelection', -1);
+                console.log('[JS] ArrowLeft pressed - moving to previous point');
+                
+                // Check if we're on the Compare page
+                if (window.torqueApp.compareRef) {
+                    window.torqueApp.compareRef.invokeMethodAsync('MoveCompareSelection', -1);
+                } 
+                // Otherwise use the main Home page reference
+                else if (window.torqueApp.dotNetRef) {
+                    window.torqueApp.dotNetRef.invokeMethodAsync('MoveSelection', -1);
+                }
             }
-        });
+        };
+
+        // Add the event listener
+        document.addEventListener('keydown', this.keyboardHandler);
+        console.log('[JS] Keyboard navigation setup complete');
     },
 
     drawRoute: function (coordinates) {
@@ -153,6 +195,9 @@
 
         // Initialize the scrollbar
         this.initScrollbar();
+
+        // Setup keyboard navigation for Home page
+        this.setupKeyboardNavigation();
     },
 
     initScrollbar: function() {
@@ -425,16 +470,8 @@
             this.initCompareScrollbar(2);
         }
 
-        // Setup keyboard navigation
-        document.addEventListener('keydown', (e) => {
-            if (e.key === "ArrowRight") {
-                e.preventDefault();
-                this.compareRef?.invokeMethodAsync('MoveCompareSelection', 1);
-            } else if (e.key === "ArrowLeft") {
-                e.preventDefault();
-                this.compareRef?.invokeMethodAsync('MoveCompareSelection', -1);
-            }
-        });
+        // Setup keyboard navigation for Compare page
+        this.setupKeyboardNavigation();
     },
 
     createCompareChart: function (ctx, chartNumber) {

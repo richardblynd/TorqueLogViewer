@@ -131,6 +131,15 @@
                         Time: @CurrentPoint.DeviceTime.ToString("HH:mm:ss") |
                         Speed: @GetValue(CurrentPoint, "Speed (GPS)(km/h)") km/h |
                         RPM: @GetValue(CurrentPoint, "Engine RPM(rpm)")
+                        <span style="margin-left: 20px; color: #666; font-size: 0.85rem;">
+                            💡 Use ← → arrow keys to navigate between points
+                        </span>
+                    </div>
+                }
+                else if (IsDataLoaded)
+                {
+                    <div style="color: #666;">
+                        Click on a point in the chart to select it, then use ← → arrow keys to navigate
                     </div>
                 }
                 @if (StartIndex >= 0 || EndIndex >= 0)
@@ -1350,20 +1359,53 @@
     [JSInvokable]
     public void MoveSelection(int direction)
     {
-        if (!IsDataLoaded || LogData.Count == 0) return;
+        var startTime = DateTime.Now;
+        Console.WriteLine($"[{startTime:HH:mm:ss.fff}] MoveSelection: Started (direction: {direction})");
+        
+        if (!IsDataLoaded || LogData.Count == 0)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] MoveSelection: No data loaded, returning");
+            return;
+        }
+
+        // If no point is selected, start from the beginning
+        if (CurrentIndex < 0)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] MoveSelection: No point selected, starting from index 0");
+            SelectPoint(0);
+            return;
+        }
 
         // Calculate the new index
         int newIndex = CurrentIndex + direction;
 
         // Safety limits
-        if (newIndex < 0) newIndex = 0;
-        if (newIndex >= LogData.Count) newIndex = LogData.Count - 1;
+        if (newIndex < 0)
+        {
+            newIndex = 0;
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] MoveSelection: Index capped at minimum (0)");
+        }
+        
+        if (newIndex >= LogData.Count)
+        {
+            newIndex = LogData.Count - 1;
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] MoveSelection: Index capped at maximum ({LogData.Count - 1})");
+        }
 
         // If it changed, select
         if (newIndex != CurrentIndex)
         {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] MoveSelection: Moving from index {CurrentIndex} to {newIndex}");
             SelectPoint(newIndex);
         }
+        else
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] MoveSelection: Already at boundary, no movement");
+        }
+        
+        var endTime = DateTime.Now;
+        var totalDuration = (endTime - startTime).TotalMilliseconds;
+        Console.WriteLine($"[{endTime:HH:mm:ss.fff}] MoveSelection: Completed (total duration: {totalDuration:F2}ms)");
     }
 
     private async Task ResetZoom()
@@ -1821,31 +1863,6 @@
     {
         if (string.IsNullOrWhiteSpace(timeStr))
             return DateTime.MinValue;
-
-        var simpleTimeMatch = Regex.Match(timeStr.Trim(), @"^(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?$");
-        if (simpleTimeMatch.Success)
-        {
-            try
-            {
-                int hour = int.Parse(simpleTimeMatch.Groups[1].Value);
-                int minute = int.Parse(simpleTimeMatch.Groups[2].Value);
-                int second = int.Parse(simpleTimeMatch.Groups[3].Value);
-                int millisecond = 0;
-
-                if (simpleTimeMatch.Groups[4].Success)
-                {
-                    string msStr = simpleTimeMatch.Groups[4].Value;
-                    if (msStr.Length > 3) msStr = msStr.Substring(0, 3);
-                    millisecond = int.Parse(msStr.PadRight(3, '0'));
-                }
-
-                var today = DateTime.Today;
-                return new DateTime(today.Year, today.Month, today.Day, hour, minute, second, millisecond);
-            }
-            catch
-            {
-            }
-        }
 
         timeStr = Regex.Replace(timeStr, @"([a-z]{3})\.", "$1", RegexOptions.IgnoreCase);
 
