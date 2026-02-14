@@ -349,539 +349,6 @@
     </div>
 }
 
-<style>
-    /* Basic Styles for Split Layout */
-    .layout-container {
-        display: flex;
-        height: 100%;
-        width: 100%;
-        overflow: hidden;
-    }
-
-    .content-area {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    .map-area {
-        flex: 1;
-        min-height: 35vh;
-        max-height: 35vh;
-        width: 100%;
-        border-bottom: 2px solid #ccc;
-    }
-
-    .map-container {
-        width: 100%;
-        height: 100%;
-        z-index: 1;
-    }
-
-    .chart-area {
-        flex: 1;
-        min-height: 40vh;
-        display: flex;
-        flex-direction: column;
-        background-color: #f8f9fa;
-    }
-
-    .controls-bar {
-        padding: 10px;
-        background: #fff;
-        border-bottom: 1px solid #ddd;
-        display: flex;
-        gap: 15px;
-        align-items: center;
-        flex-wrap: wrap;
-        flex-shrink: 0;
-    }
-
-    .control-group {
-        display: flex;
-        flex-direction: column;
-        font-size: 0.8rem;
-    }
-
-    .btn-reset, .btn-sync, .btn-toggle-map {
-        padding: 5px 10px;
-        cursor: pointer;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        font-size: 0.85rem;
-    }
-
-    .btn-reset:hover, .btn-sync:hover, .btn-toggle-map:hover {
-        background-color: #45a049;
-    }
-
-    .btn-toggle-map {
-        background-color: #607d8b;
-    }
-
-    .btn-toggle-map:hover {
-        background-color: #546e7a;
-    }
-
-    .btn-sync {
-        background-color: #2196F3;
-    }
-
-    .btn-sync:hover {
-        background-color: #0b7dda;
-    }
-
-    .btn-virtual {
-        padding: 5px 10px;
-        cursor: pointer;
-        background-color: #9c27b0;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        font-size: 0.85rem;
-    }
-
-    .btn-virtual:hover {
-        background-color: #7b1fa2;
-    }
-
-    .btn-export {
-        padding: 5px 10px;
-        cursor: pointer;
-        background-color: #ff9800;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        font-size: 0.85rem;
-    }
-
-    .btn-export:hover {
-        background-color: #e68900;
-    }
-
-    .chart-wrapper {
-        flex: 1;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .chart-container {
-        width: 100%;
-        height: 100%;
-        position: relative;
-        padding: 10px;
-        overflow: hidden;
-    }
-
-    .info-panel {
-        padding: 5px 10px;
-        background: #e9ecef;
-        font-size: 0.9rem;
-        border-top: 1px solid #ddd;
-        flex-shrink: 0;
-    }
-
-    /* Horizontal scrollbar for chart navigation */
-    .scrollbar-container {
-        padding: 10px;
-        background: #fff;
-        border-top: 1px solid #ddd;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-shrink: 0;
-    }
-
-    .scrollbar-label {
-        font-size: 0.85rem;
-        font-weight: 500;
-        margin: 0;
-        white-space: nowrap;
-    }
-
-    .chart-scrollbar {
-        flex: 1;
-        height: 8px;
-        -webkit-appearance: none;
-        appearance: none;
-        background: #e0e0e0;
-        border-radius: 5px;
-        outline: none;
-        cursor: pointer;
-    }
-
-    .chart-scrollbar::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 60px;
-        height: 20px;
-        background: #4CAF50;
-        border-radius: 5px;
-        cursor: grab;
-        transition: background 0.2s;
-    }
-
-    .chart-scrollbar::-webkit-slider-thumb:hover {
-        background: #45a049;
-    }
-
-    .chart-scrollbar::-webkit-slider-thumb:active {
-        cursor: grabbing;
-        background: #3d8b40;
-    }
-
-    .chart-scrollbar::-moz-range-thumb {
-        width: 60px;
-        height: 20px;
-        background: #4CAF50;
-        border-radius: 5px;
-        border: none;
-        cursor: grab;
-        transition: background 0.2s;
-    }
-
-    .chart-scrollbar::-moz-range-thumb:hover {
-        background: #45a049;
-    }
-
-    .chart-scrollbar::-moz-range-thumb:active {
-        cursor: grabbing;
-        background: #3d8b40;
-    }
-
-    /* Modal Styles */
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 2000;
-    }
-
-    .modal-content {
-        background: white;
-        border-radius: 8px;
-        width: 90%;
-        max-width: 500px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    }
-
-    .modal-header {
-        padding: 20px;
-        border-bottom: 1px solid #ddd;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .modal-header h3 {
-        margin: 0;
-        font-size: 1.2rem;
-    }
-
-    .btn-close {
-        background: none;
-        border: none;
-        font-size: 1.5rem;
-        cursor: pointer;
-        color: #666;
-        padding: 0;
-        width: 30px;
-        height: 30px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .btn-close:hover {
-        color: #000;
-    }
-
-    .modal-body {
-        padding: 20px;
-    }
-
-    .form-group {
-        margin-bottom: 15px;
-    }
-
-    .form-group label {
-        display: block;
-        margin-bottom: 5px;
-        font-weight: 500;
-        font-size: 0.9rem;
-    }
-
-    .form-input, .form-select {
-        width: 100%;
-        padding: 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 0.9rem;
-    }
-
-    .form-input:focus, .form-select:focus {
-        outline: none;
-        border-color: #4CAF50;
-    }
-
-    .modal-footer {
-        padding: 15px 20px;
-        border-top: 1px solid #ddd;
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-    }
-
-    .btn-cancel, .btn-create {
-        padding: 8px 16px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 0.9rem;
-    }
-
-    .btn-cancel {
-        background-color: #f44336;
-        color: white;
-    }
-
-    .btn-cancel:hover {
-        background-color: #d32f2f;
-    }
-
-    .btn-create {
-        background-color: #4CAF50;
-        color: white;
-    }
-
-    .btn-create:hover {
-        background-color: #45a049;
-    }
-
-    /* Additional Styles for Sampling Controls */
-    .form-select-small, .form-input-small {
-        padding: 5px 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 0.85rem;
-        background: white;
-    }
-
-    .form-input-small {
-        width: 80px;
-    }
-
-    .info-badge {
-        padding: 5px 10px;
-        background-color: #e3f2fd;
-        border-radius: 4px;
-        font-size: 0.85rem;
-        font-weight: 500;
-        color: #1976d2;
-        display: flex;
-        align-items: center;
-    }
-
-    /* Gauges Area Styles */
-    .gauges-area {
-        flex: 0 0 auto;
-        width: 100%;
-        background: #1a1a1a;
-        border-bottom: 2px solid #333;
-        padding: 15px;
-        overflow: hidden;
-    }
-
-    .gauges-container {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        grid-template-rows: repeat(2, minmax(0, 1fr));
-        gap: 15px;
-        height: 100%;
-        max-height: 400px;
-    }
-
-    .gauge-wrapper {
-        background: #000;
-        border: 2px solid #333;
-        border-radius: 8px;
-        padding: 12px;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-    }
-
-    .gauge-display {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        color: #fff;
-    }
-
-    .gauge-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 8px;
-        gap: 10px;
-    }
-
-    .gauge-title {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #fff;
-        flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .gauge-stats {
-        display: flex;
-        gap: 6px;
-        align-items: center;
-        flex-shrink: 0;
-    }
-
-    .gauge-stat-min,
-    .gauge-stat-max {
-        padding: 2px 5px;
-        border-radius: 3px;
-        font-size: 0.65rem;
-        font-weight: 600;
-        white-space: nowrap;
-        font-family: 'Courier New', monospace;
-        display: flex;
-        align-items: center;
-        gap: 2px;
-    }
-
-    .gauge-stat-min {
-        background-color: rgba(33, 150, 243, 0.3);
-        color: #64b5f6;
-    }
-
-    .gauge-stat-max {
-        background-color: rgba(255, 152, 0, 0.3);
-        color: #ffb74d;
-    }
-
-    .icon-min,
-    .icon-max {
-        font-size: 0.6rem;
-    }
-
-    .gauge-remove {
-        background: rgba(244, 67, 54, 0.2);
-        border: 1px solid #f44336;
-        color: #f44336;
-        border-radius: 3px;
-        padding: 2px 6px;
-        cursor: pointer;
-        font-size: 1rem;
-        line-height: 1;
-        transition: all 0.2s;
-    }
-
-    .gauge-remove:hover {
-        background: #f44336;
-        color: #fff;
-    }
-
-    .gauge-body {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .gauge-svg {
-        width: 100%;
-        height: 100%;
-        max-width: 200px;
-        max-height: 160px;
-    }
-
-    .gauge-face {
-        fill: #1a1a1a;
-        stroke: #4CAF50;
-        stroke-width: 2;
-    }
-
-    .gauge-tick {
-        stroke: #666;
-        stroke-width: 1;
-    }
-
-    .gauge-tick-major {
-        stroke: #999;
-        stroke-width: 2;
-    }
-
-    .gauge-number {
-        fill: #999;
-        font-size: 10px;
-        font-family: 'Courier New', monospace;
-        text-anchor: middle;
-    }
-
-    .gauge-needle {
-        stroke: #4CAF50;
-        stroke-width: 3;
-        stroke-linecap: round;
-        filter: drop-shadow(0 0 3px rgba(76, 175, 80, 0.5));
-    }
-
-    .gauge-center-dot {
-        fill: #4CAF50;
-    }
-
-    .gauge-digital-value {
-        fill: #4CAF50;
-        font-size: 14px;
-        font-weight: 700;
-        font-family: 'Courier New', monospace;
-        text-anchor: middle;
-    }
-
-    .no-gauges-message {
-        grid-column: 1 / -1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #666;
-        font-style: italic;
-        text-align: center;
-    }
-
-    @@media (max-width: 1400px) {
-        .gauges-container {
-            grid-template-columns: repeat(3, 1fr);
-        }
-    }
-
-    @@media (max-width: 1024px) {
-        .gauges-container {
-            grid-template-columns: repeat(2, 1fr);
-        }
-    }
-
-    @@media (max-width: 768px) {
-        .gauges-container {
-            grid-template-columns: 1fr;
-        }
-    }
-</style>
-
 @code {
     private bool IsDataLoaded = false;
     private List<LogPoint> LogData = new();
@@ -920,7 +387,7 @@
     private string VirtualSensorB = string.Empty;
     private string VirtualSensorOperation = "+";
     private List<VirtualSensor> VirtualSensors = new();
-    private bool IsChangeTimeOperation => VirtualSensorOperation == "ChangeTime" || 
+    private bool IsChangeTimeOperation => VirtualSensorOperation == "ChangeTime" ||
                                           VirtualSensorOperation == "ChangeTimeMs" ||
                                           VirtualSensorOperation == "MaxChangeTime" ||
                                           VirtualSensorOperation == "MaxChangeTimeMs";
@@ -943,7 +410,7 @@
         {
             // Initialize chart with .NET reference
             await JS.InvokeVoidAsync("torqueApp.initChart", DotNetObjectReference.Create(this));
-            
+
             // Only initialize the map if it's visible on first render
             if (IsMapVisible)
             {
@@ -969,13 +436,13 @@
     {
         IsMapVisible = !IsMapVisible;
         StateHasChanged();
-        
+
         // If map is now visible and hasn't been initialized yet, initialize it
         if (IsMapVisible)
         {
             await Task.Delay(100); // Small delay to ensure DOM is updated
             await InitializeMapIfNeeded();
-            
+
             // If we have data, redraw the route
             if (IsDataLoaded)
             {
@@ -983,7 +450,7 @@
                     .Where(p => p.Latitude != 0 && p.Longitude != 0)
                     .Select(p => new[] { p.Latitude, p.Longitude })
                     .ToList();
-                
+
                 await JS.InvokeVoidAsync("torqueApp.drawRoute", route);
             }
         }
@@ -1069,12 +536,12 @@
     private double CalculateGaugePercentage(double current, double min, double max)
     {
         if (max == min) return 0.5;
-        
+
         var percentage = (current - min) / (max - min);
-        
+
         if (percentage < 0) percentage = 0;
         if (percentage > 1) percentage = 1;
-        
+
         return percentage;
     }
 
@@ -1190,7 +657,7 @@
 
         // Parse headers - optimized
         var headers = ParseCsvLineOptimized(lines[0]);
-        for (int i = 0; i < headers.Length; i++) 
+        for (int i = 0; i < headers.Length; i++)
         {
             headers[i] = headers[i].Trim().Trim('"');
         }
@@ -1281,7 +748,7 @@
 
         // Parse data points with optimized loop
         int progressUpdateInterval = Math.Max((lines.Length - 1) / 20, 100); // Update progress every ~5% or every 100 lines
-        
+
         for (int i = 1; i < lines.Length; i++)
         {
             var cols = ParseCsvLineOptimized(lines[i]);
@@ -1328,13 +795,13 @@
             }
 
             allPoints.Add(point);
-            
+
             // Update progress periodically
             if (i % progressUpdateInterval == 0)
             {
                 int progressPercentage = 45 + (int)((i / (double)(lines.Length - 1)) * 35); // 45-80%
                 int pointsParsed = i;
-                await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", progressPercentage, 
+                await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", progressPercentage,
                     $"Parsing data points ({pointsParsed:N0}/{lines.Length - 1:N0})...");
                 await Task.Yield(); // Allow UI to update
             }
@@ -1363,14 +830,14 @@
         await Task.Yield();
 
         IsDataLoaded = true;
-        
+
         var visualizationStartTime = DateTime.Now;
         Console.WriteLine($"[{visualizationStartTime:HH:mm:ss}] ParseCSV: Updating visualization");
         await JS.InvokeVoidAsync("torqueApp.updateLoadingProgress", 88, "Updating map and chart...");
         await Task.Yield();
 
         UpdateVisualization();
-        
+
         var visualizationEndTime = DateTime.Now;
         var visualizationDuration = (visualizationEndTime - visualizationStartTime).TotalMilliseconds;
         Console.WriteLine($"[{visualizationEndTime:HH:mm:ss}] ParseCSV: Visualization updated (duration: {visualizationDuration:F2}ms)");
@@ -1469,7 +936,7 @@
 
         int dotIndex = span.Slice(secondColon).IndexOf('.');
         int secondEnd = dotIndex >= 0 ? secondColon + dotIndex : span.Length;
-        
+
         if (!int.TryParse(span.Slice(secondColon + 1, secondEnd - secondColon - 1), out int second)) return false;
 
         int millisecond = 0;
@@ -1477,7 +944,7 @@
         {
             var msSpan = span.Slice(secondEnd + 1);
             if (msSpan.Length > 3) msSpan = msSpan.Slice(0, 3);
-            
+
             if (int.TryParse(msSpan, out int ms))
             {
                 millisecond = msSpan.Length switch
@@ -1504,13 +971,13 @@
     private double ParseDoubleOptimized(string val)
     {
         if (string.IsNullOrEmpty(val)) return 0;
-        
+
         var span = val.AsSpan().Trim();
         if (span.IsEmpty || (span.Length == 1 && span[0] == '-')) return 0;
 
         if (double.TryParse(span, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out double result))
             return result;
-            
+
         return 0;
     }
 
@@ -1540,7 +1007,7 @@
 
         // Pre-allocate arrays
         string[] labels = new string[LogData.Count];
-        
+
         if (XAxisMode == "DeviceTime")
         {
             for (int i = 0; i < LogData.Count; i++)
@@ -1568,7 +1035,7 @@
 
             // Pre-allocate array
             var rawData = new double[LogData.Count];
-            
+
             for (int i = 0; i < LogData.Count; i++)
             {
                 rawData[i] = LogData[i].RawData.TryGetValue(sensor, out double value) ? value : 0;
@@ -1577,7 +1044,7 @@
             // Optimized min/max
             double min = double.MaxValue;
             double max = double.MinValue;
-            
+
             foreach (var v in rawData)
             {
                 if (v < min) min = v;
@@ -1611,7 +1078,7 @@
                 pointHoverRadius = 4,
                 tension = 0.1
             });
-            
+
             colorIdx++;
         }
 
@@ -1668,9 +1135,9 @@
     {
         var startTime = DateTime.Now;
         Console.WriteLine($"[{startTime:HH:mm:ss.fff}] OnChartClick: Started (index: {index})");
-        
+
         SelectPoint(index);
-        
+
         var endTime = DateTime.Now;
         var duration = (endTime - startTime).TotalMilliseconds;
         Console.WriteLine($"[{endTime:HH:mm:ss.fff}] OnChartClick: Completed (duration: {duration:F2}ms)");
@@ -1680,7 +1147,7 @@
     {
         var startTime = DateTime.Now;
         Console.WriteLine($"[{startTime:HH:mm:ss.fff}] SelectPoint: Started (index: {index})");
-        
+
         if (index < 0 || index >= LogData.Count)
         {
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] SelectPoint: Invalid index, returning");
@@ -1742,7 +1209,7 @@
     {
         var startTime = DateTime.Now;
         Console.WriteLine($"[{startTime:HH:mm:ss.fff}] MoveSelection: Started (direction: {direction})");
-        
+
         if (!IsDataLoaded || LogData.Count == 0)
         {
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] MoveSelection: No data loaded, returning");
@@ -1766,7 +1233,7 @@
             newIndex = 0;
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] MoveSelection: Index capped at minimum (0)");
         }
-        
+
         if (newIndex >= LogData.Count)
         {
             newIndex = LogData.Count - 1;
@@ -1783,7 +1250,7 @@
         {
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] MoveSelection: Already at boundary, no movement");
         }
-        
+
         var endTime = DateTime.Now;
         var totalDuration = (endTime - startTime).TotalMilliseconds;
         Console.WriteLine($"[{endTime:HH:mm:ss.fff}] MoveSelection: Completed (total duration: {totalDuration:F2}ms)");
@@ -1810,9 +1277,9 @@
         }).ToList();
 
         // Serialize to JSON
-        var json = System.Text.Json.JsonSerializer.Serialize(sensorConfig, new System.Text.Json.JsonSerializerOptions 
-        { 
-            WriteIndented = true 
+        var json = System.Text.Json.JsonSerializer.Serialize(sensorConfig, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
         });
 
         // Copy to clipboard via JavaScript
@@ -1831,7 +1298,7 @@
         {
             // Read from clipboard via JavaScript
             var json = await JS.InvokeAsync<string>("torqueApp.readFromClipboard");
-            
+
             if (string.IsNullOrWhiteSpace(json))
             {
                 await JS.InvokeVoidAsync("alert", "Clipboard is empty.");
@@ -1840,7 +1307,7 @@
 
             // Deserialize JSON
             var sensorConfig = System.Text.Json.JsonSerializer.Deserialize<List<SensorConfiguration>>(json);
-            
+
             if (sensorConfig == null || sensorConfig.Count == 0)
             {
                 await JS.InvokeVoidAsync("alert", "Invalid data format.");
@@ -1849,7 +1316,7 @@
 
             // Clear current selection
             SelectedSensors.Clear();
-            
+
             // Apply imported sensors and colors
             foreach (var config in sensorConfig)
             {
@@ -1864,7 +1331,7 @@
             // Update the visualization
             UpdateChartData();
             StateHasChanged();
-            
+
             await JS.InvokeVoidAsync("alert", $"{SelectedSensors.Count} sensors imported successfully!");
         }
         catch (Exception ex)
@@ -1882,13 +1349,13 @@
         }
 
         StartIndex = CurrentIndex;
-        
+
         // Clear end if it's before start
         if (EndIndex >= 0 && EndIndex < StartIndex)
         {
             EndIndex = -1;
         }
-        
+
         StateHasChanged();
     }
 
@@ -2094,8 +1561,8 @@
         for (int i = 0; i < LogData.Count; i++)
         {
             var point = LogData[i];
-            double currentValue = point.RawData.ContainsKey(virtualSensor.SensorA) 
-                ? point.RawData[virtualSensor.SensorA] 
+            double currentValue = point.RawData.ContainsKey(virtualSensor.SensorA)
+                ? point.RawData[virtualSensor.SensorA]
                 : 0;
 
             // First point or value changed
@@ -2109,10 +1576,10 @@
             {
                 // Calculate time since last change (progressive)
                 var timeSinceChange = point.DeviceTime - lastChangeTime;
-                double value = useMilliseconds 
-                    ? timeSinceChange.TotalMilliseconds 
+                double value = useMilliseconds
+                    ? timeSinceChange.TotalMilliseconds
                     : timeSinceChange.TotalSeconds;
-                
+
                 point.RawData[virtualSensor.Name] = value;
             }
         }
@@ -2133,8 +1600,8 @@
         for (int i = 0; i < LogData.Count; i++)
         {
             var point = LogData[i];
-            double currentValue = point.RawData.ContainsKey(virtualSensor.SensorA) 
-                ? point.RawData[virtualSensor.SensorA] 
+            double currentValue = point.RawData.ContainsKey(virtualSensor.SensorA)
+                ? point.RawData[virtualSensor.SensorA]
                 : 0;
 
             // First point
@@ -2149,8 +1616,8 @@
             {
                 // Calculate the duration for the previous segment
                 var duration = point.DeviceTime - lastChangeTime;
-                double durationValue = useMilliseconds 
-                    ? duration.TotalMilliseconds 
+                double durationValue = useMilliseconds
+                    ? duration.TotalMilliseconds
                     : duration.TotalSeconds;
 
                 changeDurations.Add((lastChangeIndex, i - 1, durationValue));
@@ -2166,8 +1633,8 @@
         if (lastChangeIndex < LogData.Count)
         {
             var finalDuration = LogData[LogData.Count - 1].DeviceTime - lastChangeTime;
-            double finalDurationValue = useMilliseconds 
-                ? finalDuration.TotalMilliseconds 
+            double finalDurationValue = useMilliseconds
+                ? finalDuration.TotalMilliseconds
                 : finalDuration.TotalSeconds;
 
             changeDurations.Add((lastChangeIndex, LogData.Count - 1, finalDurationValue));
@@ -2191,10 +1658,10 @@
         {
             case "Time":
                 return ApplyTimeSampling(allPoints, SamplingTimeMs);
-            
+
             case "Index":
                 return ApplyIndexSampling(allPoints, SamplingEveryN);
-            
+
             case "None":
             default:
                 return allPoints;
@@ -2210,7 +1677,7 @@
 
         foreach (var point in allPoints)
         {
-            if (lastSampledTime == null || 
+            if (lastSampledTime == null ||
                 (point.DeviceTime - lastSampledTime.Value).TotalMilliseconds >= intervalMs)
             {
                 sampledPoints.Add(point);
@@ -2226,7 +1693,7 @@
         if (allPoints.Count == 0 || everyN <= 0) return allPoints;
 
         var sampledPoints = new List<LogPoint>();
-        
+
         for (int i = 0; i < allPoints.Count; i += everyN)
         {
             sampledPoints.Add(allPoints[i]);
@@ -2252,7 +1719,7 @@
             return dt;
 
         var match = Regex.Match(timeStr, @"(\d{1,2})-([a-z]{3})-(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?", RegexOptions.IgnoreCase);
-        
+
         if (match.Success)
         {
             try

@@ -61,7 +61,7 @@
                                             @onclick="() => OnGaugeToggled(sensor)"
                                             @onclick:stopPropagation="true"
                                             title="@(GaugeSensors.Contains(sensor) ? "Remove from gauges" : "Add to gauges")">
-                                        ??
+                                        &#128336;
                                     </button>
                                     <span class="sensor-color" style="background-color: @GetSensorColor(sensor);"></span>
                                     <span class="sensor-name">@sensor</span>
@@ -98,7 +98,7 @@
                                                     @onclick="() => OnGaugeToggled(sensor)"
                                                     @onclick:stopPropagation="true"
                                                     title="@(GaugeSensors.Contains(sensor) ? "Remove from gauges" : "Add to gauges")">
-                                                ??
+                                                &#128336;
                                             </button>
                                             <span class="sensor-name">@sensor</span>
                                             <div class="sensor-stats">
