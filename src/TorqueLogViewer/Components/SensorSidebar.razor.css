@@ -258,6 +258,42 @@
     flex-shrink: 0;
 }
 
+.gauge-toggle-btn {
+    background: none;
+    border: 1px solid #ddd;
+    color: #999;
+    border-radius: 3px;
+    padding: 2px 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1;
+    margin-right: 8px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gauge-toggle-btn:hover {
+    border-color: #4CAF50;
+    color: #4CAF50;
+    background: rgba(76, 175, 80, 0.1);
+}
+
+.gauge-toggle-btn.active {
+    background: #4CAF50;
+    border-color: #4CAF50;
+    color: #fff;
+}
+
+.gauge-toggle-btn.active:hover {
+    background: #45a049;
+    border-color: #45a049;
+}
+
 .sensor-color {
     display: inline-block;
     width: 12px;

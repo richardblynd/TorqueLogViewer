@@ -14,10 +14,94 @@
             OnSensorToggle="@HandleSensorToggle"
             CurrentPoint="@CurrentPoint"
             AllLogData="@LogData"
+            GaugeSensors="@GaugeSensors"
+            OnGaugeToggle="@HandleGaugeToggle"
             @bind-IsExpanded="@IsSensorSidebarExpanded" />
     }
 
     <div class="content-area">
+        @if (IsGaugesVisible)
+        {
+            <div class="gauges-area">
+                <div class="gauges-container">
+                    @foreach (var sensor in GaugeSensors)
+                    {
+                        var minValue = GetSensorMinNumeric(sensor);
+                        var maxValue = GetSensorMaxNumeric(sensor);
+                        var currentValue = GetGaugeValueNumeric(sensor);
+                        var percentage = CalculateGaugePercentage(currentValue, minValue, maxValue);
+                        var needleAngle = -135 + (percentage * 270);
+                        
+                        <div class="gauge-wrapper">
+                            <div class="gauge-display">
+                                <div class="gauge-header">
+                                    <span class="gauge-title">@sensor</span>
+                                    <div class="gauge-stats">
+                                        <span class="gauge-stat-min" title="Minimum"><span class="icon-min">&#9660;</span> @GetSensorMin(sensor)</span>
+                                        <span class="gauge-stat-max" title="Maximum"><span class="icon-max">&#9650;</span> @GetSensorMax(sensor)</span>
+                                        <button class="gauge-remove" @onclick="() => RemoveGauge(sensor)" title="Remove gauge">&times;</button>
+                                    </div>
+                                </div>
+                                <div class="gauge-body">
+                                    <svg viewBox="0 0 200 160" class="gauge-svg">
+                                        <circle class="gauge-face" cx="100" cy="100" r="80"/>
+                                        @for (int i = 0; i <= 10; i++)
+                                        {
+                                            var angle = -135 + (i * 27);
+                                            var isMajor = i % 2 == 0;
+                                            var tickLength = isMajor ? 12 : 6;
+                                            var tickRadius = 80;
+                                            var tickStartRadius = tickRadius - tickLength;
+                                            
+                                            var x1 = 100 + tickStartRadius * Math.Cos(angle * Math.PI / 180);
+                                            var y1 = 100 + tickStartRadius * Math.Sin(angle * Math.PI / 180);
+                                            var x2 = 100 + tickRadius * Math.Cos(angle * Math.PI / 180);
+                                            var y2 = 100 + tickRadius * Math.Sin(angle * Math.PI / 180);
+                                            
+                                            <line class="@(isMajor ? "gauge-tick-major" : "gauge-tick")" 
+                                                  x1="@x1.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
+                                                  y1="@y1.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
+                                                  x2="@x2.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
+                                                  y2="@y2.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"/>
+                                            
+                                            if (isMajor)
+                                            {
+                                                var numberRadius = tickStartRadius - 10;
+                                                var numX = 100 + numberRadius * Math.Cos(angle * Math.PI / 180);
+                                                var numY = 100 + numberRadius * Math.Sin(angle * Math.PI / 180) + 4;
+                                                var displayValue = minValue + (i / 10.0) * (maxValue - minValue);
+                                                var textMarkup = new MarkupString($"<text class=\"gauge-number\" x=\"{numX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}\" y=\"{numY.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}\">{displayValue.ToString("F0")}</text>");
+                                                
+                                                @textMarkup
+                                            }
+                                        }
+                                        @{
+                                            var needleLength = 65;
+                                            var needleX = 100 + needleLength * Math.Cos(needleAngle * Math.PI / 180);
+                                            var needleY = 100 + needleLength * Math.Sin(needleAngle * Math.PI / 180);
+                                        }
+                                        <line class="gauge-needle" 
+                                              x1="100" 
+                                              y1="100" 
+                                              x2="@needleX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
+                                              y2="@needleY.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"/>
+                                        <circle class="gauge-center-dot" cx="100" cy="100" r="5"/>
+                                        @(new MarkupString($"<text class=\"gauge-digital-value\" x=\"100\" y=\"145\">{currentValue.ToString("F1")}</text>"))
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    @if (GaugeSensors.Count == 0)
+                    {
+                        <div class="no-gauges-message">
+                            <p>No gauges added yet. Click the 🕐 icon next to a sensor to add a gauge.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
         @if (IsMapVisible)
         {
             <div class="map-area">
@@ -61,6 +145,10 @@
 
                 @if (IsDataLoaded)
                 {
+                    <button class="btn-toggle-map" @onclick="ToggleGaugesVisibility" title="@(IsGaugesVisible ? "Hide Gauges" : "Show Gauges")">
+                        @(IsGaugesVisible ? "🕐 Hide Gauges" : "🕐 Show Gauges")
+                    </button>
+
                     <button class="btn-toggle-map" @onclick="ToggleMapVisibility" title="@(IsMapVisible ? "Hide Map" : "Show Map")">
                         @(IsMapVisible ? "🗺️ Hide Map" : "🗺️ Show Map")
                     </button>
@@ -602,6 +690,196 @@
         display: flex;
         align-items: center;
     }
+
+    /* Gauges Area Styles */
+    .gauges-area {
+        flex: 0 0 auto;
+        width: 100%;
+        background: #1a1a1a;
+        border-bottom: 2px solid #333;
+        padding: 15px;
+        overflow: hidden;
+    }
+
+    .gauges-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+        gap: 15px;
+        height: 100%;
+        max-height: 400px;
+    }
+
+    .gauge-wrapper {
+        background: #000;
+        border: 2px solid #333;
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .gauge-display {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        color: #fff;
+    }
+
+    .gauge-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+        gap: 10px;
+    }
+
+    .gauge-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #fff;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .gauge-stats {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .gauge-stat-min,
+    .gauge-stat-max {
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        white-space: nowrap;
+        font-family: 'Courier New', monospace;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .gauge-stat-min {
+        background-color: rgba(33, 150, 243, 0.3);
+        color: #64b5f6;
+    }
+
+    .gauge-stat-max {
+        background-color: rgba(255, 152, 0, 0.3);
+        color: #ffb74d;
+    }
+
+    .icon-min,
+    .icon-max {
+        font-size: 0.6rem;
+    }
+
+    .gauge-remove {
+        background: rgba(244, 67, 54, 0.2);
+        border: 1px solid #f44336;
+        color: #f44336;
+        border-radius: 3px;
+        padding: 2px 6px;
+        cursor: pointer;
+        font-size: 1rem;
+        line-height: 1;
+        transition: all 0.2s;
+    }
+
+    .gauge-remove:hover {
+        background: #f44336;
+        color: #fff;
+    }
+
+    .gauge-body {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .gauge-svg {
+        width: 100%;
+        height: 100%;
+        max-width: 200px;
+        max-height: 160px;
+    }
+
+    .gauge-face {
+        fill: #1a1a1a;
+        stroke: #4CAF50;
+        stroke-width: 2;
+    }
+
+    .gauge-tick {
+        stroke: #666;
+        stroke-width: 1;
+    }
+
+    .gauge-tick-major {
+        stroke: #999;
+        stroke-width: 2;
+    }
+
+    .gauge-number {
+        fill: #999;
+        font-size: 10px;
+        font-family: 'Courier New', monospace;
+        text-anchor: middle;
+    }
+
+    .gauge-needle {
+        stroke: #4CAF50;
+        stroke-width: 3;
+        stroke-linecap: round;
+        filter: drop-shadow(0 0 3px rgba(76, 175, 80, 0.5));
+    }
+
+    .gauge-center-dot {
+        fill: #4CAF50;
+    }
+
+    .gauge-digital-value {
+        fill: #4CAF50;
+        font-size: 14px;
+        font-weight: 700;
+        font-family: 'Courier New', monospace;
+        text-anchor: middle;
+    }
+
+    .no-gauges-message {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #666;
+        font-style: italic;
+        text-align: center;
+    }
+
+    @@media (max-width: 1400px) {
+        .gauges-container {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @@media (max-width: 1024px) {
+        .gauges-container {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .gauges-container {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 
 @code {
@@ -646,6 +924,10 @@
                                           VirtualSensorOperation == "ChangeTimeMs" ||
                                           VirtualSensorOperation == "MaxChangeTime" ||
                                           VirtualSensorOperation == "MaxChangeTimeMs";
+
+    // Gauges state
+    private bool IsGaugesVisible = false;
+    private HashSet<string> GaugeSensors = new();
 
     // Mapping of Portuguese month abbreviations to numbers
     private static readonly Dictionary<string, int> MonthMap = new(StringComparer.OrdinalIgnoreCase)
@@ -705,6 +987,105 @@
                 await JS.InvokeVoidAsync("torqueApp.drawRoute", route);
             }
         }
+    }
+
+    private void ToggleGaugesVisibility()
+    {
+        IsGaugesVisible = !IsGaugesVisible;
+        StateHasChanged();
+    }
+
+    private void HandleGaugeToggle(string sensor)
+    {
+        if (GaugeSensors.Contains(sensor))
+        {
+            GaugeSensors.Remove(sensor);
+        }
+        else
+        {
+            GaugeSensors.Add(sensor);
+        }
+        StateHasChanged();
+    }
+
+    private void RemoveGauge(string sensor)
+    {
+        GaugeSensors.Remove(sensor);
+        StateHasChanged();
+    }
+
+    private string GetGaugeValue(string sensor)
+    {
+        if (CurrentPoint?.RawData != null && CurrentPoint.RawData.ContainsKey(sensor))
+        {
+            return CurrentPoint.RawData[sensor].ToString("F1");
+        }
+        return "-";
+    }
+
+    private double GetGaugeValueNumeric(string sensor)
+    {
+        if (CurrentPoint?.RawData != null && CurrentPoint.RawData.ContainsKey(sensor))
+        {
+            return CurrentPoint.RawData[sensor];
+        }
+        return 0;
+    }
+
+    private double GetSensorMinNumeric(string sensor)
+    {
+        if (LogData == null || LogData.Count == 0) return 0;
+
+        double min = double.MaxValue;
+        foreach (var point in LogData)
+        {
+            if (point.RawData.ContainsKey(sensor))
+            {
+                double value = point.RawData[sensor];
+                if (value < min) min = value;
+            }
+        }
+
+        return min != double.MaxValue ? min : 0;
+    }
+
+    private double GetSensorMaxNumeric(string sensor)
+    {
+        if (LogData == null || LogData.Count == 0) return 100;
+
+        double max = double.MinValue;
+        foreach (var point in LogData)
+        {
+            if (point.RawData.ContainsKey(sensor))
+            {
+                double value = point.RawData[sensor];
+                if (value > max) max = value;
+            }
+        }
+
+        return max != double.MinValue ? max : 100;
+    }
+
+    private double CalculateGaugePercentage(double current, double min, double max)
+    {
+        if (max == min) return 0.5;
+        
+        var percentage = (current - min) / (max - min);
+        
+        if (percentage < 0) percentage = 0;
+        if (percentage > 1) percentage = 1;
+        
+        return percentage;
+    }
+
+    private string GetSensorMin(string sensor)
+    {
+        return GetSensorMinNumeric(sensor).ToString("F1");
+    }
+
+    private string GetSensorMax(string sensor)
+    {
+        return GetSensorMaxNumeric(sensor).ToString("F1");
     }
 
     private async Task HandleFileSelected(InputFileChangeEventArgs e)

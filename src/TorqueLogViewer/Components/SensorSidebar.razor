@@ -57,6 +57,12 @@
                                     <input type="checkbox"
                                            checked="@SelectedSensors.Contains(sensor)"
                                            @onchange="@(e => OnSensorToggled(sensor, (bool)e.Value!))" />
+                                    <button class="gauge-toggle-btn @(GaugeSensors.Contains(sensor) ? "active" : "")" 
+                                            @onclick="() => OnGaugeToggled(sensor)"
+                                            @onclick:stopPropagation="true"
+                                            title="@(GaugeSensors.Contains(sensor) ? "Remove from gauges" : "Add to gauges")">
+                                        ??
+                                    </button>
                                     <span class="sensor-color" style="background-color: @GetSensorColor(sensor);"></span>
                                     <span class="sensor-name">@sensor</span>
                                     <div class="sensor-stats">
@@ -88,6 +94,12 @@
                                             <input type="checkbox"
                                                    checked="@SelectedSensors.Contains(sensor)"
                                                    @onchange="@(e => OnSensorToggled(sensor, (bool)e.Value!))" />
+                                            <button class="gauge-toggle-btn @(GaugeSensors.Contains(sensor) ? "active" : "")" 
+                                                    @onclick="() => OnGaugeToggled(sensor)"
+                                                    @onclick:stopPropagation="true"
+                                                    title="@(GaugeSensors.Contains(sensor) ? "Remove from gauges" : "Add to gauges")">
+                                                ??
+                                            </button>
                                             <span class="sensor-name">@sensor</span>
                                             <div class="sensor-stats">
                                                 <span class="sensor-stat-min" title="Minimum value"><span class="icon-min">&#9660;</span> @GetSensorMin(sensor)</span>
@@ -137,6 +149,12 @@
     [Parameter]
     public object? AllLogData { get; set; }
 
+    [Parameter]
+    public HashSet<string> GaugeSensors { get; set; } = new();
+
+    [Parameter]
+    public EventCallback<string> OnGaugeToggle { get; set; }
+
     private string FilterText { get; set; } = string.Empty;
 
     // Cache for min/max values
@@ -166,6 +184,11 @@
     private void OnSensorToggled(string sensor, bool isSelected)
     {
         OnSensorToggle.InvokeAsync((sensor, isSelected));
+    }
+
+    private void OnGaugeToggled(string sensor)
+    {
+        OnGaugeToggle.InvokeAsync(sensor);
     }
 
     private void ClearAllSelections()
