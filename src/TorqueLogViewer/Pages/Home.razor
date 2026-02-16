@@ -26,8 +26,29 @@
                 <div class="gauges-container">
                     @foreach (var sensor in GaugeSensors)
                     {
-                        var minValue = Math.Min(0, GetSensorMinNumeric(sensor));
-                        var maxValue = GetSensorMaxNumeric(sensor);
+                        // Get custom scale config or use data-driven defaults
+                        var scaleConfig = GetGaugeScaleConfig(sensor);
+                        
+                        double minValue, maxValue;
+                        int majorTickCount, minorTicksPerMajor;
+                        
+                        if (scaleConfig != null)
+                        {
+                            // Use custom configuration
+                            minValue = scaleConfig.MinValue;
+                            maxValue = scaleConfig.MaxValue;
+                            majorTickCount = scaleConfig.MajorTickCount;
+                            minorTicksPerMajor = scaleConfig.MinorTicksPerMajor;
+                        }
+                        else
+                        {
+                            // Use data-driven defaults
+                            minValue = Math.Min(0, GetSensorMinNumeric(sensor));
+                            maxValue = GetSensorMaxNumeric(sensor);
+                            majorTickCount = 6;
+                            minorTicksPerMajor = 1;
+                        }
+                        
                         var currentValue = GetGaugeValueNumeric(sensor);
                         var percentage = CalculateGaugePercentage(currentValue, minValue, maxValue);
                         
@@ -38,8 +59,6 @@
                         const double startAngle = -225;
                         const double endAngle = 135;
                         const double angleRange = 270;
-                        const int majorTickCount = 6;
-                        const int minorTicksPerMajor = 1;
                         const double majorTickLength = 12;
                         const double minorTickLength = 6;
                         const double numberOffset = 10;
@@ -54,8 +73,8 @@
                                 <div class="gauge-header">
                                     <span class="gauge-title" title="@sensor">@(sensor.Length > 20 ? sensor.Substring(0, 20) + "..." : sensor)</span>
                                     <div class="gauge-stats">
-                                        <span class="gauge-stat-min" title="Minimum"><span class="icon-min">&#9660;</span> @GetSensorMin(sensor)</span>
-                                        <span class="gauge-stat-max" title="Maximum"><span class="icon-max">&#9650;</span> @GetSensorMax(sensor)</span>
+                                        <span class="gauge-stat-min" title="Minimum"><span class="icon-min">&#9660;</span> @minValue.ToString("F0")</span>
+                                        <span class="gauge-stat-max" title="Maximum"><span class="icon-max">&#9650;</span> @maxValue.ToString("F0")</span>
                                         <button class="gauge-remove" @onclick="() => RemoveGauge(sensor)" title="Remove gauge">&times;</button>
                                     </div>
                                 </div>
@@ -416,6 +435,49 @@
     // Gauges state
     private bool IsGaugesVisible = false;
     private HashSet<string> GaugeSensors = new();
+
+    // Gauge configuration system
+    private class GaugeScaleConfig
+    {
+        public double MinValue { get; set; }
+        public double MaxValue { get; set; }
+        public int MajorTickCount { get; set; }
+        public int MinorTicksPerMajor { get; set; } = 1;
+        
+        public GaugeScaleConfig(double minValue, double maxValue, int majorTickCount, int minorTicksPerMajor = 1)
+        {
+            MinValue = minValue;
+            MaxValue = maxValue;
+            MajorTickCount = majorTickCount;
+            MinorTicksPerMajor = minorTicksPerMajor;
+        }
+    }
+
+    private GaugeScaleConfig GetGaugeScaleConfig(string sensorName)
+    {
+        var sensorLower = sensorName.ToLower();
+        
+        // RPM sensors: 1000 to 7000, major tick every 1000 (7 major ticks: 1000, 2000, 3000, 4000, 5000, 6000, 7000)
+        if (sensorLower.Contains("rpm"))
+        {
+            return new GaugeScaleConfig(
+                minValue: 1000,
+                maxValue: 7000,
+                majorTickCount: 7,
+                minorTicksPerMajor: 1
+            );
+        }
+        
+        // Add more sensor-specific configurations here as needed:
+        // Example: Speed sensors
+        // if (sensorLower.Contains("speed") || sensorLower.Contains("km/h"))
+        // {
+        //     return new GaugeScaleConfig(0, 200, 5, 4); // 0-200 km/h, 5 major ticks, 4 minor ticks between each major
+        // }
+        
+        // Default: use data-driven min/max
+        return null; // null indicates to use dynamic range from data
+    }
 
     // Mapping of Portuguese month abbreviations to numbers
     private static readonly Dictionary<string, int> MonthMap = new(StringComparer.OrdinalIgnoreCase)
