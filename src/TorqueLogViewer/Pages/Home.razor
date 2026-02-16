@@ -26,7 +26,7 @@
                 <div class="gauges-container">
                     @foreach (var sensor in GaugeSensors)
                     {
-                        var minValue = GetSensorMinNumeric(sensor);
+                        var minValue = Math.Min(0, GetSensorMinNumeric(sensor));
                         var maxValue = GetSensorMaxNumeric(sensor);
                         var currentValue = GetGaugeValueNumeric(sensor);
                         var percentage = CalculateGaugePercentage(currentValue, minValue, maxValue);
@@ -45,7 +45,7 @@
                         const double numberOffset = 10;
                         const double needleLengthRatio = 0.80; // 80% of radius
                         const double centerDotRadius = 5;
-                        const double digitalValueY = 165;
+                        const double digitalValueY = 135; // Moved up inside the circle
                         
                         var needleAngle = startAngle + (percentage * angleRange);
                         
@@ -107,9 +107,7 @@
                                               x2="@needleX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
                                               y2="@needleY.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"/>
                                         <circle class="gauge-center-dot" cx="@gaugeCenterX" cy="@gaugeCenterY" r="@centerDotRadius"/>
-                                        <text>
-                                            <text class="gauge-digital-value" x="@gaugeCenterX" y="@digitalValueY">@currentValue.ToString("F1")</text>
-                                        </text>
+                                        <text class="gauge-digital-value" x="@gaugeCenterX" y="@digitalValueY" text-anchor="middle">@currentValue.ToString("F1")</text>
                                     </svg>
                                 </div>
                             </div>
