@@ -52,6 +52,15 @@
                         var currentValue = GetGaugeValueNumeric(sensor);
                         var percentage = CalculateGaugePercentage(currentValue, minValue, maxValue);
                         
+                        // Determine decimal places for display based on sensor type
+                        string valueFormat = "F1";
+                        string scaleFormat = "F0";
+                        if (scaleConfig != null && (sensor.ToLower().Contains("turbo") || sensor.ToLower().Contains("boost")))
+                        {
+                            valueFormat = "F2";
+                            scaleFormat = "F1";
+                        }
+                        
                         // Gauge configuration constants
                         const double gaugeCenterX = 100;
                         const double gaugeCenterY = 90;
@@ -73,8 +82,8 @@
                                 <div class="gauge-header">
                                     <span class="gauge-title" title="@sensor">@(sensor.Length > 20 ? sensor.Substring(0, 20) + "..." : sensor)</span>
                                     <div class="gauge-stats">
-                                        <span class="gauge-stat-min" title="Minimum"><span class="icon-min">&#9660;</span> @minValue.ToString("F0")</span>
-                                        <span class="gauge-stat-max" title="Maximum"><span class="icon-max">&#9650;</span> @maxValue.ToString("F0")</span>
+                                        <span class="gauge-stat-min" title="Minimum"><span class="icon-min">&#9660;</span> @minValue.ToString(scaleFormat)</span>
+                                        <span class="gauge-stat-max" title="Maximum"><span class="icon-max">&#9650;</span> @maxValue.ToString(scaleFormat)</span>
                                         <button class="gauge-remove" @onclick="() => RemoveGauge(sensor)" title="Remove gauge">&times;</button>
                                     </div>
                                 </div>
@@ -110,7 +119,7 @@
                                                     <text class="gauge-number" 
                                                           x="@numX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
                                                           y="@numY.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)">
-                                                        @displayValue.ToString("F0")
+                                                        @displayValue.ToString(scaleFormat)
                                                     </text>
                                                 </text>
                                             }
@@ -126,7 +135,7 @@
                                               x2="@needleX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
                                               y2="@needleY.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"/>
                                         <circle class="gauge-center-dot" cx="@gaugeCenterX" cy="@gaugeCenterY" r="@centerDotRadius"/>
-                                        <text class="gauge-digital-value" x="@gaugeCenterX" y="@digitalValueY" text-anchor="middle">@currentValue.ToString("F1")</text>
+                                        <text class="gauge-digital-value" x="@gaugeCenterX" y="@digitalValueY" text-anchor="middle">@currentValue.ToString(valueFormat)</text>
                                     </svg>
                                 </div>
                             </div>
@@ -465,6 +474,18 @@
                 maxValue: 7000,
                 majorTickCount: 7,
                 minorTicksPerMajor: 1
+            );
+        }
+        
+        // Turbo/Boost sensors: -1 to 2 bar, major tick every 0.5 (7 major ticks: -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
+        // Minor ticks every 0.1 (4 minor ticks between each major tick)
+        if (sensorLower.Contains("turbo") || sensorLower.Contains("boost"))
+        {
+            return new GaugeScaleConfig(
+                minValue: -1.0,
+                maxValue: 2.0,
+                majorTickCount: 7,      // -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0
+                minorTicksPerMajor: 4   // 4 minor ticks = 5 divisions of 0.1 between each 0.5 major tick
             );
         }
         
