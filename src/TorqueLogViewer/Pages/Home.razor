@@ -30,7 +30,24 @@
                         var maxValue = GetSensorMaxNumeric(sensor);
                         var currentValue = GetGaugeValueNumeric(sensor);
                         var percentage = CalculateGaugePercentage(currentValue, minValue, maxValue);
-                        var needleAngle = -135 + (percentage * 270);
+                        
+                        // Gauge configuration constants
+                        const double gaugeCenterX = 100;
+                        const double gaugeCenterY = 90;
+                        const double gaugeRadius = 75;
+                        const double startAngle = -135;
+                        const double endAngle = 135;
+                        const double angleRange = 270;
+                        const int majorTickCount = 6;
+                        const int minorTicksPerMajor = 1;
+                        const double majorTickLength = 12;
+                        const double minorTickLength = 6;
+                        const double numberOffset = 10;
+                        const double needleLengthRatio = 0.80; // 80% of radius
+                        const double centerDotRadius = 5;
+                        const double digitalValueY = 165;
+                        
+                        var needleAngle = startAngle + (percentage * angleRange);
                         
                         <div class="gauge-wrapper">
                             <div class="gauge-display">
@@ -43,20 +60,19 @@
                                     </div>
                                 </div>
                                 <div class="gauge-body">
-                                    <svg viewBox="0 0 200 160" class="gauge-svg">
-                                        <circle class="gauge-face" cx="100" cy="100" r="80"/>
-                                        @for (int i = 0; i <= 10; i++)
+                                    <svg viewBox="0 0 200 180" class="gauge-svg">
+                                        <circle class="gauge-face" cx="@gaugeCenterX" cy="@gaugeCenterY" r="@gaugeRadius"/>
+                                        @for (int i = 0; i <= (majorTickCount - 1) * (minorTicksPerMajor + 1); i++)
                                         {
-                                            var angle = -135 + (i * 27);
-                                            var isMajor = i % 2 == 0;
-                                            var tickLength = isMajor ? 12 : 6;
-                                            var tickRadius = 80;
-                                            var tickStartRadius = tickRadius - tickLength;
+                                            var angle = startAngle + (i * angleRange / ((majorTickCount - 1) * (minorTicksPerMajor + 1)));
+                                            var isMajor = i % (minorTicksPerMajor + 1) == 0;
+                                            var tickLength = isMajor ? majorTickLength : minorTickLength;
+                                            var tickStartRadius = gaugeRadius - tickLength;
                                             
-                                            var x1 = 100 + tickStartRadius * Math.Cos(angle * Math.PI / 180);
-                                            var y1 = 100 + tickStartRadius * Math.Sin(angle * Math.PI / 180);
-                                            var x2 = 100 + tickRadius * Math.Cos(angle * Math.PI / 180);
-                                            var y2 = 100 + tickRadius * Math.Sin(angle * Math.PI / 180);
+                                            var x1 = gaugeCenterX + tickStartRadius * Math.Cos(angle * Math.PI / 180);
+                                            var y1 = gaugeCenterY + tickStartRadius * Math.Sin(angle * Math.PI / 180);
+                                            var x2 = gaugeCenterX + gaugeRadius * Math.Cos(angle * Math.PI / 180);
+                                            var y2 = gaugeCenterY + gaugeRadius * Math.Sin(angle * Math.PI / 180);
                                             
                                             <line class="@(isMajor ? "gauge-tick-major" : "gauge-tick")" 
                                                   x1="@x1.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
@@ -66,10 +82,11 @@
                                             
                                             if (isMajor)
                                             {
-                                                var numberRadius = tickStartRadius - 10;
-                                                var numX = 100 + numberRadius * Math.Cos(angle * Math.PI / 180);
-                                                var numY = 100 + numberRadius * Math.Sin(angle * Math.PI / 180) + 4;
-                                                var displayValue = minValue + (i / 10.0) * (maxValue - minValue);
+                                                var majorTickIndex = i / (minorTicksPerMajor + 1);
+                                                var numberRadius = tickStartRadius - numberOffset;
+                                                var numX = gaugeCenterX + numberRadius * Math.Cos(angle * Math.PI / 180);
+                                                var numY = gaugeCenterY + numberRadius * Math.Sin(angle * Math.PI / 180) + 4;
+                                                var displayValue = minValue + (majorTickIndex / (double)(majorTickCount - 1)) * (maxValue - minValue);
                                                 <text>
                                                     <text class="gauge-number" 
                                                           x="@numX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
@@ -77,30 +94,22 @@
                                                         @displayValue.ToString("F0")
                                                     </text>
                                                 </text>
-
-                                                @* var textMarkup = new MarkupString($"
-                                                    <text class=\"gauge-number\"
-                                                        x=\"{numX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}\"
-                                                        y=\"{numY.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}\">{displayValue.ToString("F0")}</text>");
-                                                
-                                                @textMarkup *@
                                             }
                                         }
                                         @{
-                                            var needleLength = 65;
-                                            var needleX = 100 + needleLength * Math.Cos(needleAngle * Math.PI / 180);
-                                            var needleY = 100 + needleLength * Math.Sin(needleAngle * Math.PI / 180);
+                                            var needleLength = gaugeRadius * needleLengthRatio;
+                                            var needleX = gaugeCenterX + needleLength * Math.Cos(needleAngle * Math.PI / 180);
+                                            var needleY = gaugeCenterY + needleLength * Math.Sin(needleAngle * Math.PI / 180);
                                         }
                                         <line class="gauge-needle" 
-                                              x1="100" 
-                                              y1="100" 
+                                              x1="@gaugeCenterX" 
+                                              y1="@gaugeCenterY" 
                                               x2="@needleX.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" 
                                               y2="@needleY.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"/>
-                                        <circle class="gauge-center-dot" cx="100" cy="100" r="5"/>
+                                        <circle class="gauge-center-dot" cx="@gaugeCenterX" cy="@gaugeCenterY" r="@centerDotRadius"/>
                                         <text>
-                                            <text class="gauge-digital-value" x="100" y="145">@currentValue.ToString("F1")</text>
+                                            <text class="gauge-digital-value" x="@gaugeCenterX" y="@digitalValueY">@currentValue.ToString("F1")</text>
                                         </text>
-                                        @* @(new MarkupString($"<text class=\"gauge-digital-value\" x=\"100\" y=\"145\">{currentValue.ToString("F1")}</text>")) *@
                                     </svg>
                                 </div>
                             </div>
