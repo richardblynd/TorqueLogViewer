@@ -52,7 +52,7 @@
                         <div class="gauge-wrapper">
                             <div class="gauge-display">
                                 <div class="gauge-header">
-                                    <span class="gauge-title">@sensor</span>
+                                    <span class="gauge-title" title="@sensor">@(sensor.Length > 20 ? sensor.Substring(0, 20) + "..." : sensor)</span>
                                     <div class="gauge-stats">
                                         <span class="gauge-stat-min" title="Minimum"><span class="icon-min">&#9660;</span> @GetSensorMin(sensor)</span>
                                         <span class="gauge-stat-max" title="Maximum"><span class="icon-max">&#9650;</span> @GetSensorMax(sensor)</span>
