@@ -53,24 +53,37 @@
                         @foreach (var sensor in GetFilteredSelectedSensors())
                         {
                             <div class="sensor-item selected" @key="sensor">
-                                <label>
-                                    <input type="checkbox"
-                                           checked="@SelectedSensors.Contains(sensor)"
-                                           @onchange="@(e => OnSensorToggled(sensor, (bool)e.Value!))" />
-                                    <button class="gauge-toggle-btn @(GaugeSensors.Contains(sensor) ? "active" : "")" 
-                                            @onclick="() => OnGaugeToggled(sensor)"
-                                            @onclick:stopPropagation="true"
-                                            title="@(GaugeSensors.Contains(sensor) ? "Remove from gauges" : "Add to gauges")">
-                                        &#128336;
-                                    </button>
-                                    <span class="sensor-color" style="background-color: @GetSensorColor(sensor);"></span>
-                                    <span class="sensor-name">@sensor</span>
-                                    <div class="sensor-stats">
-                                        <span class="sensor-stat-min" title="Minimum value"><span class="icon-min">&#9660;</span> @GetSensorMin(sensor)</span>
-                                        <span class="sensor-stat-max" title="Maximum value"><span class="icon-max">&#9650;</span> @GetSensorMax(sensor)</span>
-                                        <span class="sensor-value" title="Current value">@GetCurrentSensorValue(sensor)</span>
-                                    </div>
-                                </label>
+                                <input type="checkbox"
+                                       checked="@SelectedSensors.Contains(sensor)"
+                                       @onchange="@(e => OnSensorToggled(sensor, (bool)e.Value!))" />
+                                <button class="gauge-toggle-btn @(GaugeSensors.Contains(sensor) ? "active" : "")" 
+                                        @onclick="() => OnGaugeToggled(sensor)"
+                                        @onclick:stopPropagation="true"
+                                        title="@(GaugeSensors.Contains(sensor) ? "Remove from gauges" : "Add to gauges")">
+                                    &#128336;
+                                </button>
+                                <div class="sensor-color-wrapper">
+                                    <span class="sensor-color-picker" 
+                                          style="background-color: @GetSensorColor(sensor);"
+                                          @onclick="() => ToggleColorPicker(sensor)"
+                                          @onclick:stopPropagation="true"
+                                          title="Click to change color">
+                                    </span>
+                                    @if (ColorPickerSensor == sensor)
+                                    {
+                                        <input type="color" 
+                                               class="color-picker-input"
+                                               value="@GetSensorColor(sensor)"
+                                               @onchange="@(e => OnColorChanged(sensor, e.Value?.ToString() ?? GetSensorColor(sensor)))"
+                                               @onclick:stopPropagation="true" />
+                                    }
+                                </div>
+                                <span class="sensor-name">@sensor</span>
+                                <div class="sensor-stats">
+                                    <span class="sensor-stat-min" title="Minimum value"><span class="icon-min">&#9660;</span> @GetSensorMin(sensor)</span>
+                                    <span class="sensor-stat-max" title="Maximum value"><span class="icon-max">&#9650;</span> @GetSensorMax(sensor)</span>
+                                    <span class="sensor-value" title="Current value">@GetCurrentSensorValue(sensor)</span>
+                                </div>
                             </div>
                         }
                     </div>
@@ -138,6 +151,9 @@
     public EventCallback<(string sensor, bool isSelected)> OnSensorToggle { get; set; }
 
     [Parameter]
+    public EventCallback<(string sensor, string color)> OnColorChange { get; set; }
+
+    [Parameter]
     public bool IsExpanded { get; set; } = true;
 
     [Parameter]
@@ -156,6 +172,7 @@
     public EventCallback<string> OnGaugeToggle { get; set; }
 
     private string FilterText { get; set; } = string.Empty;
+    private string? ColorPickerSensor { get; set; } = null;
 
     // Cache for min/max values
     private Dictionary<string, (double min, double max)> _sensorMinMaxCache = new();
@@ -189,6 +206,19 @@
     private void OnGaugeToggled(string sensor)
     {
         OnGaugeToggle.InvokeAsync(sensor);
+    }
+
+    private void ToggleColorPicker(string sensor)
+    {
+        ColorPickerSensor = ColorPickerSensor == sensor ? null : sensor;
+        StateHasChanged();
+    }
+
+    private void OnColorChanged(string sensor, string color)
+    {
+        OnColorChange.InvokeAsync((sensor, color));
+        ColorPickerSensor = null;
+        StateHasChanged();
     }
 
     private void ClearAllSelections()

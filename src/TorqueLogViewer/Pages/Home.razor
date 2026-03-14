@@ -12,6 +12,7 @@
             SelectedSensors="@SelectedSensors"
             SensorColorMapping="@SensorColorMapping"
             OnSensorToggle="@HandleSensorToggle"
+            OnColorChange="@HandleColorChange"
             CurrentPoint="@CurrentPoint"
             AllLogData="@LogData"
             GaugeSensors="@GaugeSensors"
@@ -80,7 +81,7 @@
                         <div class="gauge-wrapper">
                             <div class="gauge-display">
                                 <div class="gauge-header">
-                                    <span class="gauge-title" title="@sensor">@(sensor.Length > 20 ? sensor.Substring(0, 20) + "..." : sensor)</span>
+                                    <span class="gauge-title" title="@sensor">@(sensor.Length > 25 ? sensor.Substring(0, 25) + "..." : sensor)</span>
                                     <div class="gauge-stats">
                                         <span class="gauge-stat-min" title="Minimum"><span class="icon-min">&#9660;</span> @minValue.ToString(scaleFormat)</span>
                                         <span class="gauge-stat-max" title="Maximum"><span class="icon-max">&#9650;</span> @maxValue.ToString(scaleFormat)</span>
@@ -422,8 +423,83 @@
     private int EndIndex = -1;
 
     // Color mapping for sensors
-    private static readonly string[] ChartColors = { "#FF5733", "#33FF57", "#3357FF", "#FF33F6", "#33FFF6", "#F3FF33", "#FF8C33" };
+    private static readonly string[] ChartColors = GenerateDistinctColors(20);
     private Dictionary<string, string> SensorColorMapping = new();
+
+    // Generate distinct colors using HSL color space
+    private static string[] GenerateDistinctColors(int count)
+    {
+        var colors = new string[count];
+        double goldenRatioConjugate = 0.618033988749895;
+        double hue = 0.5; // Start at a nice hue
+        
+        for (int i = 0; i < count; i++)
+        {
+            // Use golden ratio for even distribution
+            hue += goldenRatioConjugate;
+            hue %= 1.0;
+            
+            // Vary saturation and lightness for more distinction
+            double saturation = 0.65 + (i % 3) * 0.15; // 0.65, 0.80, 0.95
+            double lightness = 0.45 + (i % 2) * 0.10;  // 0.45, 0.55
+            
+            colors[i] = HslToHex(hue, saturation, lightness);
+        }
+        
+        return colors;
+    }
+
+    // Convert HSL to Hex color
+    private static string HslToHex(double h, double s, double l)
+    {
+        double r, g, b;
+        
+        if (s == 0)
+        {
+            r = g = b = l;
+        }
+        else
+        {
+            var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            var p = 2 * l - q;
+            r = HueToRgb(p, q, h + 1.0 / 3.0);
+            g = HueToRgb(p, q, h);
+            b = HueToRgb(p, q, h - 1.0 / 3.0);
+        }
+        
+        return $"#{((int)(r * 255)):X2}{((int)(g * 255)):X2}{((int)(b * 255)):X2}";
+    }
+
+    private static double HueToRgb(double p, double q, double t)
+    {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1.0 / 6.0) return p + (q - p) * 6 * t;
+        if (t < 1.0 / 2.0) return q;
+        if (t < 2.0 / 3.0) return p + (q - p) * (2.0 / 3.0 - t) * 6;
+        return p;
+    }
+
+    private void HandleColorChange((string sensor, string color) args)
+    {
+        SensorColorMapping[args.sensor] = args.color;
+        UpdateChartData();
+        StateHasChanged();
+    }
+
+    private void HandleSensorToggle((string sensor, bool isSelected) args)
+    {
+        if (args.isSelected)
+        {
+            SelectedSensors.Add(args.sensor);
+        }
+        else
+        {
+            SelectedSensors.Remove(args.sensor);
+        }
+        UpdateChartData();
+        StateHasChanged();
+    }
 
     // Marked range points
     private LogPoint? StartPoint = null;
@@ -1196,17 +1272,14 @@
         UpdateChartData();
     }
 
-    private void HandleSensorToggle((string sensor, bool isSelected) args)
+    private void HandleColorChange(string sensor, string newColor)
     {
-        if (args.isSelected)
+        // Update the color mapping
+        if (SensorColorMapping.ContainsKey(sensor))
         {
-            SelectedSensors.Add(args.sensor);
+            SensorColorMapping[sensor] = newColor;
         }
-        else
-        {
-            SelectedSensors.Remove(args.sensor);
-        }
-        UpdateChartData();
+
         StateHasChanged();
     }
 

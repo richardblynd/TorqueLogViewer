@@ -227,6 +227,10 @@
     padding: 6px 8px;
     border-radius: 4px;
     transition: background-color 0.2s;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
 }
 
 .sensor-item:hover {
@@ -241,6 +245,12 @@
     background-color: #c8e6c9;
 }
 
+.sensor-item-main {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
 .sensor-item label {
     display: flex;
     align-items: center;
@@ -248,6 +258,7 @@
     margin: 0;
     font-size: 0.75rem;
     color: #333;
+    flex: 1;
 }
 
 .sensor-item input[type="checkbox"] {
@@ -304,6 +315,58 @@
     border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
+.sensor-color-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin-right: 8px;
+}
+
+.sensor-color-picker {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.sensor-color-picker:hover {
+    border-color: rgba(0, 0, 0, 0.4);
+    transform: scale(1.15);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.sensor-color-picker:active {
+    transform: scale(1.05);
+}
+
+.color-picker-input {
+    position: absolute;
+    left: 28px;
+    top: -5px;
+    width: 40px;
+    height: 30px;
+    border: 2px solid #4CAF50;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    background: white;
+}
+
+.color-picker-input::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.color-picker-input::-webkit-color-swatch {
+    border: none;
+    border-radius: 2px;
+}
+
 .sensor-name {
     flex: 1;
     word-break: break-word;
@@ -312,6 +375,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     margin-right: 8px;
+    font-size: 12px;
 }
 
 .sensor-stats {
@@ -319,6 +383,7 @@
     gap: 4px;
     flex-shrink: 0;
     align-items: center;
+    margin-left: auto;
 }
 
 .sensor-stat-min,
@@ -362,14 +427,6 @@
     color: #2e7d32;
     white-space: nowrap;
     font-family: 'Courier New', monospace;
-}
-
-.no-results {
-    padding: 20px;
-    text-align: center;
-    color: #999;
-    font-size: 0.85rem;
-    font-style: italic;
 }
 
 /* Animation for sensor items */
